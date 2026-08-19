@@ -120,6 +120,15 @@ export default function App() {
       throw new Error("The selected queue item is not editable on Spotify.");
     }
 
+    const duplicateCount = amp.tracks.filter(
+      (candidate) => candidate.uri === track.uri,
+    ).length;
+    if (duplicateCount > 1) {
+      throw new Error(
+        "This track appears more than once. Spotify's current remove API cannot target one duplicate occurrence safely.",
+      );
+    }
+
     const snapshotId = await spotify.removeTrackFromPlaylist(
       activeSpotifyPlaylist.id,
       track.uri,
