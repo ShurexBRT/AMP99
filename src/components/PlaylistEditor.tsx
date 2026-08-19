@@ -17,6 +17,7 @@ type Props = {
   spotifyError: string | null;
   activeSpotifyPlaylist: SpotifyPlaylist | null;
   spotifyPlaylistEditable: boolean;
+  spotifyPlaylistReorderSafe: boolean;
   onMove: (position: WindowPosition) => void;
   onSelectTrack: (index: number) => void;
   onLoadSkin: (file: File) => Promise<SkinLoadSummary>;
@@ -35,10 +36,13 @@ type Props = {
   onSearchSpotifyTracks: (query: string) => Promise<SpotifyTrack[]>;
   onAddSpotifyTrack: (track: SpotifyTrack) => Promise<{ trackCount: number }>;
   onRemoveSpotifyTrack: (track: Track) => Promise<{ trackCount: number }>;
+  onMoveSpotifyTrack: (
+    direction: -1 | 1,
+  ) => Promise<{ trackCount: number; newIndex: number }>;
   onClearQueue: () => void;
 };
 
-type Menu = "add" | "list" | "spotify" | null;
+type Menu = "add" | "misc" | "list" | "spotify" | null;
 
 function time(value: number) {
   return `${Math.floor(value / 60)}:${String(value % 60).padStart(2, "0")}`;
@@ -61,6 +65,7 @@ export function PlaylistEditor({
   spotifyError,
   activeSpotifyPlaylist,
   spotifyPlaylistEditable,
+  spotifyPlaylistReorderSafe,
   onMove,
   onSelectTrack,
   onLoadSkin,
@@ -74,6 +79,7 @@ export function PlaylistEditor({
   onSearchSpotifyTracks,
   onAddSpotifyTrack,
   onRemoveSpotifyTrack,
+  onMoveSpotifyTrack,
   onClearQueue,
 }: Props) {
   const fileInput = useRef<HTMLInputElement>(null);
@@ -220,6 +226,21 @@ export function PlaylistEditor({
     }
   };
 
+  const moveCurrentTrack = async (direction: -1 | 1) => {
+    setMenu(null);
+    const action = direction < 0 ? "UP" : "DOWN";
+    setStatus(`MOVING TRACK ${action}...`);
+
+    try {
+      const result = await onMoveSpotifyTrack(direction);
+      setStatus(
+        `MOVED TRACK ${action} · POSITION ${result.newIndex + 1}/${result.trackCount}`,
+      );
+    } catch (error) {
+      setStatus(errorMessage(error).toUpperCase());
+    }
+  };
+
   const clearQueue = () => {
     onClearQueue();
     setMenu(null);
@@ -233,8 +254,13 @@ export function PlaylistEditor({
   };
 
   const editContext = activeSpotifyPlaylist
-    ? `${activeSpotifyPlaylist.name.toUpperCase()} ${spotifyPlaylistEditable ? "[EDIT]" : "[READ ONLY]"}`
+    ? `${activeSpotifyPlaylist.name.toUpperCase()} ${spotifyPlaylistEditable ? "[EDIT]" : "[READ ONLY]"}${spotifyPlaylistEditable && !spotifyPlaylistReorderSafe ? " [MOVE LOCKED]" : ""}`
     : null;
+  const canMove =
+    spotifyPlaylistEditable &&
+    spotifyPlaylistReorderSafe &&
+    !spotifyLoading &&
+    tracks.length > 1;
 
   return (
     <WindowFrame title="AMP99 PLAYLIST EDITOR" position={position} width={275} height={232} onMove={onMove} className="playlist-window">
@@ -276,7 +302,18 @@ export function PlaylistEditor({
           onClick={() => void removeCurrentTrack()}
         >REM</button>
         <button>SEL</button>
-        <button>MISC</button>
+        <div className="menu-anchor">
+          <button onClick={() => setMenu(menu === "misc" ? null : "misc")}>MISC</button>
+          {menu === "misc" && (
+            <div className="popup-menu misc-menu">
+              <button disabled={!canMove || currentIndex <= 0} onClick={() => void moveCurrentTrack(-1)}>Move Up</button>
+              <button disabled={!canMove || currentIndex >= tracks.length - 1} onClick={() => void moveCurrentTrack(1)}>Move Down</button>
+              {!spotifyPlaylistReorderSafe && activeSpotifyPlaylist && (
+                <button disabled>Move locked: non-track items</button>
+              )}
+            </div>
+          )}
+        </div>
         <div className="menu-anchor list-options">
           <button onClick={() => setMenu(menu === "list" ? null : "list")}>LIST OPTS</button>
           {menu === "list" && (

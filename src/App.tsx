@@ -4,6 +4,7 @@ import { MainPlayer } from "./components/MainPlayer";
 import { PlaylistEditor } from "./components/PlaylistEditor";
 import { useSkinManager } from "./skins/useSkinManager";
 import { spotifyTracksToPlayerQueue } from "./spotify/playerAdapter";
+import { reorderSpotifyPlaylistItem } from "./spotify/playlistReorder";
 import type { SpotifyPlaylist, SpotifyTrack } from "./spotify/types";
 import { useSpotifyLibrary } from "./spotify/useSpotifyLibrary";
 import { useSpotifyPlayback } from "./spotify/useSpotifyPlayback";
@@ -16,6 +17,8 @@ export default function App() {
   const spotify = useSpotifyLibrary();
   const [activeSpotifyPlaylist, setActiveSpotifyPlaylist] =
     useState<SpotifyPlaylist | null>(null);
+  const [activeSpotifyPlaylistReorderSafe, setActiveSpotifyPlaylistReorderSafe] =
+    useState(true);
   const playback = useSpotifyPlayback({
     enabled: spotify.authenticated,
     initialVolume: amp.volume,
@@ -61,6 +64,7 @@ export default function App() {
     const result = await spotify.loadPlaylist(playlist.id);
     amp.replaceQueue(spotifyTracksToPlayerQueue(result.tracks));
     setActiveSpotifyPlaylist(playlist);
+    setActiveSpotifyPlaylistReorderSafe(result.skippedNonTracks === 0);
     return {
       trackCount: result.tracks.length,
       skippedNonTracks: result.skippedNonTracks,
@@ -71,12 +75,14 @@ export default function App() {
     const tracks = await spotify.loadLikedSongs();
     amp.replaceQueue(spotifyTracksToPlayerQueue(tracks));
     setActiveSpotifyPlaylist(null);
+    setActiveSpotifyPlaylistReorderSafe(true);
     return { trackCount: tracks.length };
   };
 
   const createSpotifyPlaylist = async (name: string, isPublic: boolean) => {
     const created = await spotify.createPlaylist({ name, isPublic });
     setActiveSpotifyPlaylist(created);
+    setActiveSpotifyPlaylistReorderSafe(true);
     amp.replaceQueue([]);
     return created;
   };
@@ -88,7 +94,23 @@ export default function App() {
 
     const result = await spotify.loadPlaylist(activeSpotifyPlaylist.id);
     amp.replaceQueue(spotifyTracksToPlayerQueue(result.tracks));
+    setActiveSpotifyPlaylistReorderSafe(result.skippedNonTracks === 0);
     return result;
+  };
+
+  const updateActivePlaylistSnapshot = (
+    snapshotId: string | null,
+    trackCount: number,
+  ) => {
+    setActiveSpotifyPlaylist((current) =>
+      current
+        ? {
+            ...current,
+            snapshotId: snapshotId ?? current.snapshotId,
+            totalItems: trackCount,
+          }
+        : current,
+    );
   };
 
   const addSpotifyTrack = async (track: SpotifyTrack) => {
@@ -101,16 +123,7 @@ export default function App() {
       track.uri,
     );
     const result = await reloadActivePlaylist();
-
-    setActiveSpotifyPlaylist((current) =>
-      current
-        ? {
-            ...current,
-            snapshotId: snapshotId ?? current.snapshotId,
-            totalItems: result.tracks.length,
-          }
-        : current,
-    );
+    updateActivePlaylistSnapshot(snapshotId, result.tracks.length);
 
     return { trackCount: result.tracks.length };
   };
@@ -135,18 +148,42 @@ export default function App() {
       activeSpotifyPlaylist.snapshotId,
     );
     const result = await reloadActivePlaylist();
-
-    setActiveSpotifyPlaylist((current) =>
-      current
-        ? {
-            ...current,
-            snapshotId: snapshotId ?? current.snapshotId,
-            totalItems: result.tracks.length,
-          }
-        : current,
-    );
+    updateActivePlaylistSnapshot(snapshotId, result.tracks.length);
 
     return { trackCount: result.tracks.length };
+  };
+
+  const moveSpotifyTrack = async (direction: -1 | 1) => {
+    if (!activeSpotifyPlaylist || !spotifyPlaylistEditable) {
+      throw new Error("Load a Spotify playlist you can edit first.");
+    }
+
+    if (!activeSpotifyPlaylistReorderSafe) {
+      throw new Error(
+        "This playlist contains non-track items. AMP99 will not reorder it until those Spotify positions can be mapped safely.",
+      );
+    }
+
+    const sourceIndex = amp.currentIndex;
+    const targetIndex = sourceIndex + direction;
+    if (targetIndex < 0 || targetIndex >= amp.tracks.length) {
+      throw new Error(direction < 0 ? "Track is already first." : "Track is already last.");
+    }
+
+    const insertBefore = direction < 0 ? targetIndex : sourceIndex + 2;
+    const snapshotId = await reorderSpotifyPlaylistItem({
+      playlistId: activeSpotifyPlaylist.id,
+      rangeStart: sourceIndex,
+      insertBefore,
+      rangeLength: 1,
+      snapshotId: activeSpotifyPlaylist.snapshotId,
+    });
+
+    const result = await reloadActivePlaylist();
+    updateActivePlaylistSnapshot(snapshotId, result.tracks.length);
+    amp.setCurrentIndex(targetIndex);
+
+    return { trackCount: result.tracks.length, newIndex: targetIndex };
   };
 
   const playTrackAt = async (index: number) => {
@@ -259,6 +296,7 @@ export default function App() {
   const disconnectSpotify = () => {
     spotify.disconnect();
     setActiveSpotifyPlaylist(null);
+    setActiveSpotifyPlaylistReorderSafe(true);
     if (amp.currentTrack.source === "spotify") {
       amp.setIsPlaying(false);
     }
@@ -310,6 +348,7 @@ export default function App() {
           spotifyError={spotify.error ?? playback.error}
           activeSpotifyPlaylist={activeSpotifyPlaylist}
           spotifyPlaylistEditable={spotifyPlaylistEditable}
+          spotifyPlaylistReorderSafe={activeSpotifyPlaylistReorderSafe}
           onMove={(position) => amp.setWindowPosition("playlist", position)}
           onSelectTrack={(index) => void playTrackAt(index)}
           onLoadSkin={skin.loadSkin}
@@ -323,7 +362,12 @@ export default function App() {
           onSearchSpotifyTracks={spotify.searchTracks}
           onAddSpotifyTrack={addSpotifyTrack}
           onRemoveSpotifyTrack={removeSpotifyTrack}
-          onClearQueue={() => { amp.replaceQueue([]); setActiveSpotifyPlaylist(null); }}
+          onMoveSpotifyTrack={moveSpotifyTrack}
+          onClearQueue={() => {
+            amp.replaceQueue([]);
+            setActiveSpotifyPlaylist(null);
+            setActiveSpotifyPlaylistReorderSafe(true);
+          }}
         />
       )}
     </main>

@@ -21,6 +21,11 @@ export {
   type CreateSpotifyPlaylistInput,
 } from "./api";
 
+export {
+  reorderSpotifyPlaylistItem,
+  type ReorderSpotifyPlaylistItemInput,
+} from "./playlistReorder";
+
 export { getSpotifyConfig, SPOTIFY_SCOPES } from "./config";
 
 export {
