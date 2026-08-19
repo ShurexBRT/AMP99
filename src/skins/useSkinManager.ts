@@ -52,6 +52,7 @@ export function useSkinManager() {
     loading,
     renderedSkin,
     sprites: renderedSkin?.sprites ?? null,
+    playlistColors: renderedSkin?.playlistColors ?? null,
     warnings: renderedSkin?.warnings ?? [],
     loadSkin,
     resetSkin,
