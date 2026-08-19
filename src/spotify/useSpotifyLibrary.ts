@@ -49,6 +49,10 @@ function readableSpotifyError(error: unknown): string {
   return error instanceof Error ? error.message : "Spotify request failed.";
 }
 
+function asReadableError(error: unknown): Error {
+  return new Error(readableSpotifyError(error));
+}
+
 async function fetchAllPlaylists(): Promise<SpotifyPlaylist[]> {
   const result: SpotifyPlaylist[] = [];
   let offset = 0;
@@ -130,9 +134,9 @@ export function useSpotifyLibrary() {
       setPlaylists(nextPlaylists);
       setAuthenticated(true);
     } catch (requestError) {
-      const message = readableSpotifyError(requestError);
-      setError(message);
-      throw requestError;
+      const readable = asReadableError(requestError);
+      setError(readable.message);
+      throw readable;
     } finally {
       setLoading(false);
     }
@@ -195,8 +199,9 @@ export function useSpotifyLibrary() {
     try {
       return await fetchAllPlaylistTracks(playlistId);
     } catch (requestError) {
-      setError(readableSpotifyError(requestError));
-      throw requestError;
+      const readable = asReadableError(requestError);
+      setError(readable.message);
+      throw readable;
     } finally {
       setLoading(false);
     }
@@ -209,8 +214,9 @@ export function useSpotifyLibrary() {
     try {
       return await fetchAllSavedTracks();
     } catch (requestError) {
-      setError(readableSpotifyError(requestError));
-      throw requestError;
+      const readable = asReadableError(requestError);
+      setError(readable.message);
+      throw readable;
     } finally {
       setLoading(false);
     }
@@ -227,8 +233,9 @@ export function useSpotifyLibrary() {
         setPlaylists(nextPlaylists);
         return created;
       } catch (requestError) {
-        setError(readableSpotifyError(requestError));
-        throw requestError;
+        const readable = asReadableError(requestError);
+        setError(readable.message);
+        throw readable;
       } finally {
         setLoading(false);
       }
