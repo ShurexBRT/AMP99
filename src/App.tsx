@@ -304,7 +304,7 @@ export default function App() {
 
   return (
     <main className="desktop" data-double-size={amp.doubleSize ? "true" : "false"}>
-      <div className="desktop-brand">AMP99 <span>PLAY IT LIKE IT'S '99</span></div>
+      <div className="desktop-brand">AMP99 <span>PLAY IT LIKE IT'S 1999</span></div>
       <button className="size-toggle" onClick={() => amp.setDoubleSize((value) => !value)}>{amp.doubleSize ? "1×" : "2×"}</button>
 
       <MainPlayer
