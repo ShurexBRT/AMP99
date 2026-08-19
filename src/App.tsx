@@ -1,22 +1,32 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Equalizer } from "./components/Equalizer";
 import { MainPlayer } from "./components/MainPlayer";
 import { PlaylistEditor } from "./components/PlaylistEditor";
 import { useSkinManager } from "./skins/useSkinManager";
 import { spotifyTracksToPlayerQueue } from "./spotify/playerAdapter";
-import type { SpotifyPlaylist } from "./spotify/types";
+import type { SpotifyPlaylist, SpotifyTrack } from "./spotify/types";
 import { useSpotifyLibrary } from "./spotify/useSpotifyLibrary";
 import { useSpotifyPlayback } from "./spotify/useSpotifyPlayback";
 import { useAmp99State } from "./state/useAmp99State";
+import type { Track } from "./types/player";
 
 export default function App() {
   const amp = useAmp99State();
   const skin = useSkinManager();
   const spotify = useSpotifyLibrary();
+  const [activeSpotifyPlaylist, setActiveSpotifyPlaylist] =
+    useState<SpotifyPlaylist | null>(null);
   const playback = useSpotifyPlayback({
     enabled: spotify.authenticated,
     initialVolume: amp.volume,
   });
+
+  const spotifyPlaylistEditable = Boolean(
+    activeSpotifyPlaylist &&
+      spotify.profile &&
+      (activeSpotifyPlaylist.ownerId === spotify.profile.id ||
+        activeSpotifyPlaylist.isCollaborative),
+  );
 
   useEffect(() => {
     const snapshot = playback.snapshot;
@@ -50,6 +60,7 @@ export default function App() {
   const loadSpotifyPlaylist = async (playlist: SpotifyPlaylist) => {
     const result = await spotify.loadPlaylist(playlist.id);
     amp.replaceQueue(spotifyTracksToPlayerQueue(result.tracks));
+    setActiveSpotifyPlaylist(playlist);
     return {
       trackCount: result.tracks.length,
       skippedNonTracks: result.skippedNonTracks,
@@ -59,7 +70,52 @@ export default function App() {
   const loadLikedSongs = async () => {
     const tracks = await spotify.loadLikedSongs();
     amp.replaceQueue(spotifyTracksToPlayerQueue(tracks));
+    setActiveSpotifyPlaylist(null);
     return { trackCount: tracks.length };
+  };
+
+  const createSpotifyPlaylist = async (name: string, isPublic: boolean) => {
+    const created = await spotify.createPlaylist({ name, isPublic });
+    setActiveSpotifyPlaylist(created);
+    amp.replaceQueue([]);
+    return created;
+  };
+
+  const reloadActivePlaylist = async () => {
+    if (!activeSpotifyPlaylist) {
+      throw new Error("Load an editable Spotify playlist first.");
+    }
+    const result = await spotify.loadPlaylist(activeSpotifyPlaylist.id);
+    amp.replaceQueue(spotifyTracksToPlayerQueue(result.tracks));
+    const refreshed = spotify.playlists.find(
+      (playlist) => playlist.id === activeSpotifyPlaylist.id,
+    );
+    if (refreshed) {
+      setActiveSpotifyPlaylist(refreshed);
+    }
+    return result;
+  };
+
+  const addSpotifyTrack = async (track: SpotifyTrack) => {
+    if (!activeSpotifyPlaylist || !spotifyPlaylistEditable) {
+      throw new Error("Load a Spotify playlist you can edit first.");
+    }
+    await spotify.addTrackToPlaylist(activeSpotifyPlaylist.id, track.uri);
+    const result = await reloadActivePlaylist();
+    return { trackCount: result.tracks.length };
+  };
+
+  const removeSpotifyTrack = async (track: Track) => {
+    if (!activeSpotifyPlaylist || !spotifyPlaylistEditable || !track.uri) {
+      throw new Error("The selected queue item is not editable on Spotify.");
+    }
+    await spotify.removeTrackFromPlaylist(
+      activeSpotifyPlaylist.id,
+      track.uri,
+      activeSpotifyPlaylist.snapshotId,
+    );
+    const result = await reloadActivePlaylist();
+    return { trackCount: result.tracks.length };
   };
 
   const playTrackAt = async (index: number) => {
@@ -169,6 +225,14 @@ export default function App() {
     }
   };
 
+  const disconnectSpotify = () => {
+    spotify.disconnect();
+    setActiveSpotifyPlaylist(null);
+    if (amp.currentTrack.source === "spotify") {
+      amp.setIsPlaying(false);
+    }
+  };
+
   return (
     <main className="desktop" data-double-size={amp.doubleSize ? "true" : "false"}>
       <div className="desktop-brand">AMP99 <span>PLAY IT LIKE IT'S '99</span></div>
@@ -213,17 +277,22 @@ export default function App() {
           spotifyPlaylists={spotify.playlists}
           spotifyLoading={spotify.loading}
           spotifyError={spotify.error ?? playback.error}
+          activeSpotifyPlaylist={activeSpotifyPlaylist}
+          spotifyPlaylistEditable={spotifyPlaylistEditable}
           onMove={(position) => amp.setWindowPosition("playlist", position)}
           onSelectTrack={(index) => void playTrackAt(index)}
           onLoadSkin={skin.loadSkin}
           onResetSkin={skin.resetSkin}
           onConnectSpotify={spotify.connect}
-          onDisconnectSpotify={spotify.disconnect}
+          onDisconnectSpotify={disconnectSpotify}
           onRefreshSpotify={spotify.refreshLibrary}
           onLoadSpotifyPlaylist={loadSpotifyPlaylist}
           onLoadLikedSongs={loadLikedSongs}
-          onCreateSpotifyPlaylist={(name, isPublic) => spotify.createPlaylist({ name, isPublic })}
-          onClearQueue={() => amp.replaceQueue([])}
+          onCreateSpotifyPlaylist={createSpotifyPlaylist}
+          onSearchSpotifyTracks={spotify.searchTracks}
+          onAddSpotifyTrack={addSpotifyTrack}
+          onRemoveSpotifyTrack={removeSpotifyTrack}
+          onClearQueue={() => { amp.replaceQueue([]); setActiveSpotifyPlaylist(null); }}
         />
       )}
     </main>
