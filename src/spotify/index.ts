@@ -10,10 +10,12 @@ export {
 } from "./auth";
 
 export {
+  createCurrentUserPlaylist,
   getCurrentSpotifyUser,
   getCurrentUserPlaylists,
   getPlaylistTracks,
   getSavedTracks,
+  type CreateSpotifyPlaylistInput,
 } from "./api";
 
 export { getSpotifyConfig, SPOTIFY_SCOPES } from "./config";
