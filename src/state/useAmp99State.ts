@@ -32,11 +32,11 @@ export function useAmp99State() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [volume, setVolume] = useState(74);
+  const [balance, setBalance] = useState(0);
   const [progress, setProgress] = useState(31);
   const [shuffle, setShuffle] = useState(false);
   const [repeat, setRepeat] = useState(false);
   const [doubleSize, setDoubleSize] = useState(false);
-  const [activeSkin, setActiveSkin] = useState("AMP99 Default");
 
   const currentTrack = demoTracks[currentIndex];
 
@@ -67,25 +67,25 @@ export function useAmp99State() {
     currentTrack,
     tracks: demoTracks,
     volume,
+    balance,
     progress,
     shuffle,
     repeat,
     doubleSize,
-    activeSkin,
     setWindowPosition,
     setPlaylistVisible,
     setEqualizerVisible,
     setIsPlaying,
     setCurrentIndex,
     setVolume,
+    setBalance,
     setProgress,
     setShuffle,
     setRepeat,
     setDoubleSize,
-    setActiveSkin,
     previous,
     next,
-  }), [positions, playlistVisible, equalizerVisible, isPlaying, currentIndex, currentTrack, volume, progress, shuffle, repeat, doubleSize, activeSkin, setWindowPosition, previous, next]);
+  }), [positions, playlistVisible, equalizerVisible, isPlaying, currentIndex, currentTrack, volume, balance, progress, shuffle, repeat, doubleSize, setWindowPosition, previous, next]);
 
   return api;
 }
