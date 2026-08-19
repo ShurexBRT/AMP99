@@ -11,7 +11,7 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Emitter, Manager,
 };
-use tauri_plugin_global_shortcut::ShortcutState;
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
 const MAX_SKIN_BYTES: u64 = 16 * 1024 * 1024;
 const OPEN_SKIN_EVENT: &str = "amp99://open-skin";
@@ -130,38 +130,21 @@ fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
-fn media_shortcut_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
-    tauri_plugin_global_shortcut::Builder::new()
-        .with_shortcuts([
-            "MediaPlayPause",
-            "MediaStop",
-            "MediaTrackPrevious",
-            "MediaTrackNext",
-        ])
-        .expect("failed to configure AMP99 media shortcuts")
-        .with_handler(|app, shortcut, event| {
-            if event.state != ShortcutState::Pressed {
-                return;
-            }
-
-            let shortcut = shortcut.to_string().to_ascii_lowercase();
-            let action = if shortcut.contains("mediaplaypause") {
-                Some("play-pause")
-            } else if shortcut.contains("mediastop") {
-                Some("stop")
-            } else if shortcut.contains("mediatrackprevious") {
-                Some("previous")
-            } else if shortcut.contains("mediatracknext") {
-                Some("next")
-            } else {
-                None
-            };
-
-            if let Some(action) = action {
+fn register_media_shortcuts(app: &tauri::AppHandle) {
+    for (shortcut, action) in [
+        ("MediaPlayPause", "play-pause"),
+        ("MediaStop", "stop"),
+        ("MediaTrackPrevious", "previous"),
+        ("MediaTrackNext", "next"),
+    ] {
+        // Global media keys can already be owned by another desktop app. AMP99 treats
+        // native registration as an enhancement, never as a startup requirement.
+        let _ = app.global_shortcut().on_shortcut(shortcut, move |app, _shortcut, event| {
+            if event.state == ShortcutState::Pressed {
                 let _ = app.emit(MEDIA_KEY_EVENT, action);
             }
-        })
-        .build()
+        });
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -174,7 +157,7 @@ pub fn run() {
             }
             focus_main(app);
         }))
-        .plugin(media_shortcut_plugin())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(PendingSkin::default())
         .manage(AlwaysOnTop::default())
         .invoke_handler(tauri::generate_handler![take_pending_skin, read_skin_file])
@@ -185,6 +168,7 @@ pub fn run() {
                 }
             }
             create_tray(app.handle())?;
+            register_media_shortcuts(app.handle());
             Ok(())
         })
         .run(tauri::generate_context!())
