@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "AMP99 — Play it like it's '99",
+        "title": "AMP99 — Play it like it's 1999",
         "width": 900,
         "height": 620,
         "minWidth": 640,
@@ -32,7 +32,7 @@
     "targets": "all",
     "publisher": "Predrag Jovanovic",
     "shortDescription": "Classic late-90s music player experience for Spotify.",
-    "longDescription": "AMP99 is a free retro desktop music player inspired by late-90s media player workflows. Play it like it's '99.",
+    "longDescription": "AMP99 is a free retro desktop music player inspired by late-90s media player workflows. Play it like it's 1999.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
