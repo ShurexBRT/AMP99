@@ -51,8 +51,13 @@ function snapshotFromState(
   };
 }
 
+function readablePlaybackError(error: unknown): string {
+  return error instanceof Error ? error.message : "Spotify playback operation failed.";
+}
+
 export function useSpotifyPlayback({ enabled, initialVolume }: Options) {
   const playerRef = useRef<SpotifyWebPlaybackPlayer | null>(null);
+  const initialVolumeRef = useRef(initialVolume);
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
   const [environmentSupported, setEnvironmentSupported] = useState<boolean | null>(null);
@@ -69,10 +74,12 @@ export function useSpotifyPlayback({ enabled, initialVolume }: Options) {
       setSnapshot(null);
       setError(null);
       setPremiumRequired(false);
+      setEnvironmentSupported(null);
       return;
     }
 
     if (!hasPlaybackScopes()) {
+      setConnected(false);
       setError("Reconnect Spotify to grant AMP99 playback permissions.");
       return;
     }
@@ -87,17 +94,19 @@ export function useSpotifyPlayback({ enabled, initialVolume }: Options) {
 
         player = new Player({
           name: "AMP99 — Play it like it's '99",
-          volume: Math.max(0, Math.min(1, initialVolume / 100)),
+          volume: Math.max(0, Math.min(1, initialVolumeRef.current / 100)),
           enableMediaSession: true,
           getOAuthToken: (callback) => {
             void getSpotifyAccessToken()
               .then(callback)
               .catch((tokenError) => {
-                setError(
-                  tokenError instanceof Error
-                    ? tokenError.message
-                    : "Could not refresh Spotify access token.",
-                );
+                if (!disposed) {
+                  setError(
+                    tokenError instanceof Error
+                      ? tokenError.message
+                      : "Could not refresh Spotify access token.",
+                  );
+                }
               });
           },
         });
@@ -108,6 +117,7 @@ export function useSpotifyPlayback({ enabled, initialVolume }: Options) {
           setDeviceId(device_id);
           setConnected(true);
           setEnvironmentSupported(true);
+          setPremiumRequired(false);
           setError(null);
         });
 
@@ -179,86 +189,100 @@ export function useSpotifyPlayback({ enabled, initialVolume }: Options) {
         playerRef.current = null;
       }
     };
-  }, [enabled, initialVolume]);
+  }, [enabled]);
 
   const requirePlayer = useCallback(() => {
     const player = playerRef.current;
     if (!player || !deviceId) {
-      throw new Error(
-        error || "AMP99 Spotify device is not ready yet.",
-      );
+      throw new Error(error || "AMP99 Spotify device is not ready yet.");
     }
     return { player, deviceId };
   }, [deviceId, error]);
 
-  const playTrack = useCallback(
-    async (uri: string) => {
-      const { player, deviceId: activeDeviceId } = requirePlayer();
-      setError(null);
+  const runOperation = useCallback(async <T,>(operation: () => Promise<T>) => {
+    setError(null);
+    try {
+      return await operation();
+    } catch (operationError) {
+      const message = readablePlaybackError(operationError);
+      setError(message);
+      throw new Error(message);
+    }
+  }, []);
 
+  const playTrack = useCallback(
+    async (uri: string) => runOperation(async () => {
+      const { player, deviceId: activeDeviceId } = requirePlayer();
       try {
         await player.activateElement();
       } catch {
         // Desktop environments often do not need explicit activation.
       }
-
       await startSpotifyTrack(activeDeviceId, uri);
-    },
-    [requirePlayer],
+    }),
+    [requirePlayer, runOperation],
   );
 
-  const resume = useCallback(async () => {
-    const { player } = requirePlayer();
-    setError(null);
-    try {
-      await player.activateElement();
-    } catch {
-      // Continue; activateElement is mainly needed where autoplay is restricted.
-    }
-    await player.resume();
-  }, [requirePlayer]);
+  const resume = useCallback(
+    async () => runOperation(async () => {
+      const { player } = requirePlayer();
+      try {
+        await player.activateElement();
+      } catch {
+        // Continue; activateElement is mainly needed where autoplay is restricted.
+      }
+      await player.resume();
+    }),
+    [requirePlayer, runOperation],
+  );
 
-  const pause = useCallback(async () => {
-    const { player } = requirePlayer();
-    await player.pause();
-  }, [requirePlayer]);
+  const pause = useCallback(
+    async () => runOperation(async () => {
+      const { player } = requirePlayer();
+      await player.pause();
+    }),
+    [requirePlayer, runOperation],
+  );
 
-  const stop = useCallback(async () => {
-    const { player } = requirePlayer();
-    await player.pause();
-    await player.seek(0);
-  }, [requirePlayer]);
+  const stop = useCallback(
+    async () => runOperation(async () => {
+      const { player } = requirePlayer();
+      await player.pause();
+      await player.seek(0);
+    }),
+    [requirePlayer, runOperation],
+  );
 
   const seek = useCallback(
-    async (positionMs: number) => {
+    async (positionMs: number) => runOperation(async () => {
       const { player } = requirePlayer();
       await player.seek(Math.max(0, Math.floor(positionMs)));
-    },
-    [requirePlayer],
+    }),
+    [requirePlayer, runOperation],
   );
 
   const setVolume = useCallback(
-    async (percent: number) => {
+    async (percent: number) => runOperation(async () => {
       const { player } = requirePlayer();
       await player.setVolume(Math.max(0, Math.min(1, percent / 100)));
-    },
-    [requirePlayer],
+    }),
+    [requirePlayer, runOperation],
   );
 
   const setShuffle = useCallback(
-    async (value: boolean) => {
+    async (value: boolean) => runOperation(async () => {
       const { deviceId: activeDeviceId } = requirePlayer();
       await setSpotifyShuffle(activeDeviceId, value);
-    },
-    [requirePlayer],
+    }),
+    [requirePlayer, runOperation],
   );
 
   const setRepeat = useCallback(
-    async (value: boolean) => {
+    async (value: boolean) => runOperation(async () => {
       const { deviceId: activeDeviceId } = requirePlayer();
       await setSpotifyRepeat(activeDeviceId, value);
-    },
-    [requirePlayer],
+    }),
+    [requirePlayer, runOperation],
   );
 
   return {
