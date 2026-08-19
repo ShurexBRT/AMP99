@@ -85,14 +85,9 @@ export default function App() {
     if (!activeSpotifyPlaylist) {
       throw new Error("Load an editable Spotify playlist first.");
     }
+
     const result = await spotify.loadPlaylist(activeSpotifyPlaylist.id);
     amp.replaceQueue(spotifyTracksToPlayerQueue(result.tracks));
-    const refreshed = spotify.playlists.find(
-      (playlist) => playlist.id === activeSpotifyPlaylist.id,
-    );
-    if (refreshed) {
-      setActiveSpotifyPlaylist(refreshed);
-    }
     return result;
   };
 
@@ -100,8 +95,23 @@ export default function App() {
     if (!activeSpotifyPlaylist || !spotifyPlaylistEditable) {
       throw new Error("Load a Spotify playlist you can edit first.");
     }
-    await spotify.addTrackToPlaylist(activeSpotifyPlaylist.id, track.uri);
+
+    const snapshotId = await spotify.addTrackToPlaylist(
+      activeSpotifyPlaylist.id,
+      track.uri,
+    );
     const result = await reloadActivePlaylist();
+
+    setActiveSpotifyPlaylist((current) =>
+      current
+        ? {
+            ...current,
+            snapshotId: snapshotId ?? current.snapshotId,
+            totalItems: result.tracks.length,
+          }
+        : current,
+    );
+
     return { trackCount: result.tracks.length };
   };
 
@@ -109,12 +119,24 @@ export default function App() {
     if (!activeSpotifyPlaylist || !spotifyPlaylistEditable || !track.uri) {
       throw new Error("The selected queue item is not editable on Spotify.");
     }
-    await spotify.removeTrackFromPlaylist(
+
+    const snapshotId = await spotify.removeTrackFromPlaylist(
       activeSpotifyPlaylist.id,
       track.uri,
       activeSpotifyPlaylist.snapshotId,
     );
     const result = await reloadActivePlaylist();
+
+    setActiveSpotifyPlaylist((current) =>
+      current
+        ? {
+            ...current,
+            snapshotId: snapshotId ?? current.snapshotId,
+            totalItems: result.tracks.length,
+          }
+        : current,
+    );
+
     return { trackCount: result.tracks.length };
   };
 
