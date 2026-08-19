@@ -10,6 +10,8 @@ import {
 } from "./types";
 
 const DEFAULT_PAGE_LIMIT = 50;
+const SEARCH_PAGE_LIMIT = 10;
+const MAX_PLAYLIST_WRITE_ITEMS = 100;
 
 type RawSpotifyImage = {
   url?: string;
@@ -78,6 +80,14 @@ type RawUserProfile = {
   external_urls?: { spotify?: string };
 };
 
+type RawSearchResponse = {
+  tracks?: RawSpotifyPage<RawSpotifyTrack>;
+};
+
+type RawSnapshotResponse = {
+  snapshot_id?: string;
+};
+
 type PageOptions = {
   limit?: number;
   offset?: number;
@@ -96,6 +106,15 @@ function normalizePageOptions(options?: PageOptions): Required<PageOptions> {
   );
   const offset = Math.max(0, Math.floor(options?.offset ?? 0));
 
+  return { limit, offset };
+}
+
+function normalizeSearchOptions(options?: PageOptions): Required<PageOptions> {
+  const limit = Math.min(
+    SEARCH_PAGE_LIMIT,
+    Math.max(1, Math.floor(options?.limit ?? SEARCH_PAGE_LIMIT)),
+  );
+  const offset = Math.min(1000, Math.max(0, Math.floor(options?.offset ?? 0)));
   return { limit, offset };
 }
 
@@ -266,6 +285,21 @@ function createPage<T, R>(
   };
 }
 
+function validatePlaylistWrite(playlistId: string, uris: string[]): void {
+  if (!playlistId.trim()) {
+    throw new Error("playlistId is required.");
+  }
+  if (uris.length === 0) {
+    throw new Error("At least one Spotify item URI is required.");
+  }
+  if (uris.length > MAX_PLAYLIST_WRITE_ITEMS) {
+    throw new Error(`Spotify allows at most ${MAX_PLAYLIST_WRITE_ITEMS} playlist items per write request.`);
+  }
+  if (uris.some((uri) => !uri.startsWith("spotify:track:"))) {
+    throw new Error("AMP99 playlist editing currently supports Spotify track URIs only.");
+  }
+}
+
 export async function getCurrentSpotifyUser(): Promise<SpotifyUserProfile> {
   const raw = await requestSpotify<RawUserProfile>("me");
 
@@ -351,6 +385,33 @@ export async function getPlaylistTracks(
   };
 }
 
+export async function searchSpotifyTracks(
+  query: string,
+  options?: PageOptions,
+): Promise<SpotifyPage<SpotifyTrack>> {
+  const normalizedQuery = query.trim();
+  if (!normalizedQuery) {
+    throw new Error("Search query is required.");
+  }
+
+  const { limit, offset } = normalizeSearchOptions(options);
+  const params = new URLSearchParams({
+    q: normalizedQuery,
+    type: "track",
+    limit: String(limit),
+    offset: String(offset),
+  });
+  const raw = await requestSpotify<RawSearchResponse>(
+    `search?${params.toString()}`,
+  );
+  const page = raw.tracks ?? { items: [], limit, offset, total: 0, next: null };
+  const items = (page.items ?? [])
+    .map(mapTrack)
+    .filter((item): item is SpotifyTrack => item !== null);
+
+  return createPage(page, items);
+}
+
 export async function createCurrentUserPlaylist(
   input: CreateSpotifyPlaylistInput,
 ): Promise<SpotifyPlaylist> {
@@ -383,4 +444,51 @@ export async function createCurrentUserPlaylist(
   }
 
   return playlist;
+}
+
+export async function addSpotifyPlaylistItems(
+  playlistId: string,
+  uris: string[],
+  position?: number,
+): Promise<string | null> {
+  validatePlaylistWrite(playlistId, uris);
+  const payload: { uris: string[]; position?: number } = { uris };
+  if (typeof position === "number") {
+    payload.position = Math.max(0, Math.floor(position));
+  }
+
+  const raw = await requestSpotify<RawSnapshotResponse>(
+    `playlists/${encodeURIComponent(playlistId)}/items`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+  return raw.snapshot_id ?? null;
+}
+
+export async function removeSpotifyPlaylistItems(
+  playlistId: string,
+  uris: string[],
+  snapshotId?: string | null,
+): Promise<string | null> {
+  validatePlaylistWrite(playlistId, uris);
+  const body: {
+    items: { uri: string }[];
+    snapshot_id?: string;
+  } = {
+    items: uris.map((uri) => ({ uri })),
+  };
+  if (snapshotId) {
+    body.snapshot_id = snapshotId;
+  }
+
+  const raw = await requestSpotify<RawSnapshotResponse>(
+    `playlists/${encodeURIComponent(playlistId)}/items`,
+    {
+      method: "DELETE",
+      body: JSON.stringify(body),
+    },
+  );
+  return raw.snapshot_id ?? null;
 }
