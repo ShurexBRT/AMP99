@@ -40,7 +40,7 @@ jobs:
 
       - name: Generate AMP99 platform icons
         shell: pwsh
-        run: npx tauri icon --output src-tauri/icons src-tauri/app-icon.svg
+        run: npm run tauri:icon
 
       - name: Build AMP99 MSI and NSIS installers
         shell: pwsh

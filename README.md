@@ -1,12 +1,21 @@
 # AMP99
 
-> **Play it like it's '99.**
+> **Play it like it's 1999.**
 
 AMP99 is a free Windows desktop music player that recreates the classic late-90s three-window desktop-player workflow while using Spotify as its music library and playback backend.
 
 The product goal is **not** to build a modern Spotify client with a retro theme. AMP99 should feel like a classic desktop player that gained Spotify support as a native plugin.
 
 > **AI contributors:** read [`AGENTS.md`](./AGENTS.md) completely before changing code. It defines task claiming, branch ownership, conflict prevention, architecture boundaries and handoff rules for parallel agent work.
+
+## Brand
+
+- Product name: **AMP99**
+- Tagline: **Play it like it's 1999.**
+- App icon: original AMP99 gunmetal hi-fi faceplate with phosphor-green `A99` LCD monogram and play indicator
+- Default visual direction: graphite / black hardware surfaces, phosphor LCD green, restrained brushed-metal detail
+
+The scalable source app icon lives at `src-tauri/app-icon.svg`. Tauri generates the platform-specific Windows/macOS/Linux icon set from that source before local native builds and in Windows CI.
 
 ## Current project status
 
@@ -168,7 +177,9 @@ npm install
 npm run tauri:dev
 ```
 
-The repository CI now also builds MSI and NSIS development installers and performs a raw-EXE plus MSI install/launch/uninstall smoke test. These development bundles are useful for runtime testing but are **not** Microsoft Store release packages.
+`npm run tauri:dev` and `npm run tauri:build` regenerate the platform icon set from `src-tauri/app-icon.svg` before launching/building.
+
+The repository CI also builds MSI and NSIS development installers and performs a raw-EXE plus MSI install/launch/uninstall smoke test. These development bundles are useful for runtime testing but are **not** Microsoft Store release packages.
 
 ## What we are working on next
 
@@ -194,6 +205,7 @@ src/
 └── App.tsx           application composition
 
 src-tauri/
+├── app-icon.svg      scalable original AMP99 source app icon
 ├── src/              native Tauri/Rust integration
 ├── capabilities/     Tauri permissions
 └── *.conf.json       desktop / future Store packaging configuration
