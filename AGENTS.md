@@ -21,7 +21,7 @@ AMP99 is an independent project. Do not add Winamp, Nullsoft, or Spotify logos, 
 Current AMP99 brand source:
 
 - product name: **AMP99**;
-- source app icon: `src-tauri/app-icon.png`;
+- source app icon: `src-tauri/app-icon.svg`;
 - icon direction: original gunmetal hi-fi faceplate with phosphor-green `A99` LCD monogram and play indicator;
 - the icon remains AMP99-owned branding even when the player UI is changed by a user-supplied `.wsz` skin.
 
@@ -69,7 +69,7 @@ src/
 └── styles.css        current foundation styling; expected to evolve
 
 src-tauri/
-├── app-icon.png      original AMP99 app-icon source
+├── app-icon.svg      scalable original AMP99 app-icon source
 ├── src/              native Tauri/Rust integration
 ├── capabilities/     Tauri permissions
 └── *.conf.json       desktop/store packaging configuration
