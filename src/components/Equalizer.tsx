@@ -1,4 +1,5 @@
 import { useState, type CSSProperties } from "react";
+import { useCurrentSkin } from "../skins/useSkinManager";
 import type { WindowPosition } from "../types/player";
 import { WindowFrame } from "./WindowFrame";
 
@@ -176,12 +177,15 @@ function DefaultEqualizer({ position, onMove }: Omit<Props, "skinSprites">) {
 }
 
 export function Equalizer(props: Props) {
-  if (props.skinSprites?.get("eq.windowBackground")) {
+  const sharedSkin = useCurrentSkin();
+  const sprites = props.skinSprites ?? sharedSkin?.sprites ?? null;
+
+  if (sprites?.get("eq.windowBackground")) {
     return (
       <LegacyEqualizer
         position={props.position}
         onMove={props.onMove}
-        sprites={props.skinSprites}
+        sprites={sprites}
       />
     );
   }
