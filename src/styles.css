@@ -1,0 +1,150 @@
+:root {
+  font-family: Tahoma, "MS Sans Serif", Arial, sans-serif;
+  color: #d7d7d7;
+  background: #090b0e;
+  font-synthesis: none;
+  text-rendering: geometricPrecision;
+  --chrome-hi: #878787;
+  --chrome-mid: #4b4d50;
+  --chrome-lo: #161719;
+  --screen: #07120b;
+  --screen-text: #49f25f;
+  --accent: #78a6ff;
+  --title: #09266d;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { width: 100%; min-width: 100%; height: 100%; min-height: 100%; margin: 0; overflow: hidden; }
+button, input { font: inherit; }
+button { color: #d6d6d6; }
+
+.desktop {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  min-width: 640px;
+  min-height: 480px;
+  overflow: hidden;
+  user-select: none;
+  background:
+    radial-gradient(circle at 50% 20%, rgba(35, 44, 58, .22), transparent 43%),
+    linear-gradient(#101318, #060708);
+}
+
+.desktop::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: .14;
+  background-image: repeating-linear-gradient(0deg, transparent 0 3px, rgba(255,255,255,.04) 4px);
+}
+
+.desktop-brand {
+  position: absolute;
+  right: 22px;
+  bottom: 18px;
+  color: #303640;
+  font-size: 26px;
+  font-weight: 900;
+  letter-spacing: -2px;
+}
+.desktop-brand span { display: block; font-size: 8px; letter-spacing: 2px; text-align: right; }
+.size-toggle { position: absolute; right: 18px; top: 16px; z-index: 50; background: #202328; border: 1px solid #555; font-size: 10px; padding: 4px 8px; }
+
+.amp-window {
+  position: absolute;
+  z-index: 10;
+  overflow: visible;
+  background: linear-gradient(135deg, #777 0, #3e4042 7px, #242527 100%);
+  border-top: 1px solid #a9aaac;
+  border-left: 1px solid #a9aaac;
+  border-right: 1px solid #090a0b;
+  border-bottom: 1px solid #090a0b;
+  box-shadow: 2px 2px 0 #000, inset 1px 1px 0 #686a6d;
+  image-rendering: pixelated;
+}
+
+.amp-titlebar {
+  height: 14px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 3px;
+  cursor: move;
+  touch-action: none;
+  background: linear-gradient(90deg, #071b50, #174aa4 50%, #071b50);
+  border-bottom: 1px solid #111;
+  color: #fff;
+}
+.amp-title { flex: 0 0 auto; font-size: 8px; font-weight: 700; letter-spacing: .8px; line-height: 8px; text-shadow: 1px 1px #000; }
+.amp-titlebar-grip { height: 2px; flex: 1; min-width: 14px; border-top: 1px solid rgba(255,255,255,.45); border-bottom: 1px solid rgba(0,0,0,.7); }
+
+.main-body { position: relative; height: 101px; padding: 5px; }
+.display-panel {
+  position: absolute; left: 8px; top: 5px; width: 176px; height: 46px;
+  background: var(--screen); border: 2px inset #666; color: var(--screen-text);
+  overflow: hidden; box-shadow: inset 0 0 12px #000;
+}
+.time-display { position: absolute; left: 5px; top: 4px; font: 700 22px/22px "Courier New", monospace; letter-spacing: -3px; text-shadow: 0 0 4px rgba(73,242,95,.5); }
+.status-dot { position: absolute; left: 60px; top: 8px; font-size: 8px; }
+.track-marquee { position: absolute; left: 5px; top: 28px; right: 5px; overflow: hidden; white-space: nowrap; font: 700 8px/9px "Courier New", monospace; }
+.track-marquee span { display: inline-block; min-width: 100%; animation: marquee 9s linear infinite alternate; }
+@keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-34px); } }
+.fake-spectrum { position: absolute; right: 4px; top: 4px; width: 64px; height: 21px; display: flex; gap: 1px; align-items: flex-end; opacity: .85; }
+.fake-spectrum i { display:block; width: 2px; background: linear-gradient(#ff3, #6f6 55%, #0a0); }
+.stream-meta { position: absolute; right: 4px; bottom: 3px; font: 6px/7px "Courier New", monospace; color: #6aa76e; }
+
+.classic-range { accent-color: #7b9bcf; height: 10px; }
+.seek { position: absolute; left: 6px; right: 6px; top: 53px; width: 260px; margin: 0; }
+.transport-row { position: absolute; left: 7px; bottom: 7px; display: flex; gap: 1px; }
+.transport-row button, .toggle-row button, .eq-toolbar button, .playlist-toolbar button {
+  height: 18px; min-width: 24px; padding: 0 5px; border: 1px outset #858585; background: linear-gradient(#67696c, #383a3d); font-size: 8px; font-weight: 700; text-shadow: 1px 1px #111;
+}
+button:active { border-style: inset !important; transform: translate(1px,1px); }
+button.active { color: #8fb7ff; box-shadow: inset 0 0 4px #0b2252; }
+.eject-button { margin-left: 4px; }
+.volume-line { position: absolute; right: 6px; top: 6px; width: 77px; font-size: 6px; color: #aaa; }
+.volume-line span { display: block; margin-bottom: -2px; }
+.compact { width: 76px; }
+.toggle-row { position:absolute; right: 6px; bottom: 7px; display:flex; gap:1px; }
+.toggle-row button { height: 14px; min-width: 17px; padding: 0 3px; font-size: 6px; }
+
+.eq-toolbar { display: flex; gap: 2px; padding: 5px 6px 2px; }
+.eq-toolbar button { height: 13px; min-width: 25px; font-size: 6px; }
+.eq-toolbar button:last-child { margin-left: auto; }
+.eq-bands { height: 75px; display: flex; align-items: flex-end; padding: 0 7px 4px; gap: 3px; }
+.eq-bands.disabled { opacity: .35; }
+.eq-bands label { width: 20px; height: 68px; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; font-size: 6px; color:#bbb; }
+.eq-bands input[type="range"] { width: 55px; transform: rotate(-90deg); margin-bottom: 25px; accent-color: #8fb7ff; }
+.eq-bands span { margin-top: -17px; }
+
+.playlist-window { background: #242629; }
+.playlist-list { position:absolute; left:4px; top:18px; right:4px; bottom:37px; overflow:auto; background:#07120b; border:2px inset #595b5d; padding:2px; }
+.playlist-row { display:grid; grid-template-columns: 20px 1fr 30px; width:100%; height:14px; padding:1px 3px; border:0; background:transparent; color:#69e86e; text-align:left; font: 8px/11px "Courier New", monospace; }
+.playlist-row:hover { background:#102617; }
+.playlist-row.selected { background:#1639a0; color:#fff; }
+.track-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.track-time { text-align:right; }
+.playlist-status { position:absolute; left:5px; right:5px; bottom:21px; height:10px; overflow:hidden; white-space:nowrap; color:#999; font:6px/9px "Courier New", monospace; }
+.playlist-toolbar { position:absolute; left:4px; right:4px; bottom:3px; height:18px; display:flex; gap:1px; }
+.playlist-toolbar button { height:16px; font-size:6px; min-width:35px; }
+.list-options { margin-left:auto; }
+.menu-anchor { position:relative; }
+.popup-menu { position:absolute; left:0; bottom:18px; z-index:60; width:126px; padding:2px; background:#c3c3c3; border:2px outset #eee; box-shadow:2px 2px 0 #000; }
+.popup-menu.align-right { left:auto; right:0; width:150px; }
+.popup-menu button { display:block; width:100%; height:18px; border:0; background:transparent; color:#111; text-align:left; text-shadow:none; font-size:8px; }
+.popup-menu button:hover:not(:disabled) { background:#123890; color:#fff; }
+.popup-menu button:disabled { color:#777; }
+.hidden-file { display:none; }
+
+.desktop[data-double-size="true"] .amp-window { transform: scale(2); transform-origin: top left; }
+
+@media (max-width: 760px) {
+  .desktop { min-width: 0; overflow: auto; }
+  .desktop-brand { display:none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .track-marquee span { animation: none; }
+}
