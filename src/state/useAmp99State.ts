@@ -1,7 +1,8 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Track, WindowId, WindowPosition } from "../types/player";
 
 const STORAGE_KEY = "amp99.windowPositions.v1";
+export const WINDOW_CLOSE_EVENT = "amp99-window-close";
 
 const defaultPositions: Record<WindowId, WindowPosition> = {
   main: { x: 28, y: 28 },
@@ -47,6 +48,17 @@ export function useAmp99State() {
   const [doubleSize, setDoubleSize] = useState(false);
 
   const currentTrack = tracks[currentIndex] ?? tracks[0] ?? emptyTrack;
+
+  useEffect(() => {
+    const onClose = (event: Event) => {
+      const id = (event as CustomEvent<WindowId>).detail;
+      if (id === "equalizer") setEqualizerVisible(false);
+      if (id === "playlist") setPlaylistVisible(false);
+    };
+
+    window.addEventListener(WINDOW_CLOSE_EVENT, onClose);
+    return () => window.removeEventListener(WINDOW_CLOSE_EVENT, onClose);
+  }, []);
 
   const setWindowPosition = useCallback((id: WindowId, position: WindowPosition) => {
     setPositions((previous) => {
