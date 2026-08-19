@@ -1,0 +1,230 @@
+.amp-window-active { z-index: 30; }
+.amp-window-inactive { z-index: 10; }
+.amp-window-inactive:not(.legacy-skinned-window) > .amp-titlebar {
+  filter: saturate(.25) brightness(.72);
+}
+.amp-window-shaded {
+  overflow: hidden !important;
+  min-height: 14px;
+}
+.amp-window-shaded.legacy-skinned-window {
+  border: 0;
+  box-shadow: none;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+
+/* Classic Equalizer ------------------------------------------------------ */
+.legacy-equalizer.legacy-skinned-window {
+  background-size: 275px 116px;
+}
+.legacy-eq-body {
+  position: absolute;
+  inset: 0;
+  width: 275px;
+  height: 116px;
+  overflow: hidden;
+}
+.legacy-eq-button {
+  position: absolute;
+  z-index: 5;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background-color: transparent;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  color: #ddd;
+  font: 6px/8px Tahoma, Arial, sans-serif;
+  text-shadow: none;
+}
+.legacy-eq-button:active {
+  border: 0 !important;
+  transform: none !important;
+}
+.legacy-eq-on { left: 14px; top: 18px; width: 24px; height: 12px; }
+.legacy-eq-auto { left: 38px; top: 18px; width: 34px; height: 12px; }
+.legacy-eq-presets { left: 217px; top: 18px; width: 44px; height: 12px; }
+
+.legacy-eq-slider {
+  --eq-thumb: none;
+  position: absolute;
+  z-index: 4;
+  top: 38px;
+  width: 11px;
+  height: 62px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  writing-mode: vertical-lr;
+  direction: rtl;
+  background: transparent;
+  accent-color: transparent;
+}
+.legacy-eq-slider::-webkit-slider-runnable-track {
+  width: 11px;
+  height: 62px;
+  border: 0;
+  background: transparent;
+}
+.legacy-eq-slider::-webkit-slider-thumb {
+  width: 11px;
+  height: 11px;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: transparent;
+  background-image: var(--eq-thumb);
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+.legacy-eq-slider::-moz-range-track {
+  width: 11px;
+  border: 0;
+  background: transparent;
+}
+.legacy-eq-slider::-moz-range-thumb {
+  width: 11px;
+  height: 11px;
+  border: 0;
+  border-radius: 0;
+  background-color: transparent;
+  background-image: var(--eq-thumb);
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+.legacy-eq-slider:focus-visible { outline: 1px dotted #fff; }
+.legacy-eq-disabled .legacy-eq-slider { opacity: .42; }
+
+/* Classic Playlist Editor ------------------------------------------------ */
+.playlist-window.legacy-skinned-window {
+  --playlist-normal: #00ff00;
+  --playlist-current: #fff;
+  --playlist-bg: #000;
+  --playlist-selected-bg: #000080;
+  background-size: 275px 232px;
+  border: 0;
+  box-shadow: none;
+}
+.playlist-window.legacy-skinned-window > .amp-titlebar {
+  width: 275px;
+  height: 14px;
+  padding: 0;
+  border: 0;
+  background: transparent !important;
+}
+.playlist-window.legacy-skinned-window > .amp-titlebar .amp-title,
+.playlist-window.legacy-skinned-window > .amp-titlebar .amp-titlebar-grip {
+  visibility: hidden;
+}
+.playlist-window.legacy-skinned-window .playlist-list {
+  left: 12px;
+  top: 20px;
+  right: 19px;
+  bottom: 38px;
+  padding: 0;
+  border: 0;
+  background: var(--playlist-bg);
+  box-shadow: none;
+}
+.playlist-window.legacy-skinned-window .playlist-row {
+  height: 13px;
+  padding: 1px 1px;
+  color: var(--playlist-normal);
+  font: 8px/11px "Courier New", monospace;
+}
+.playlist-window.legacy-skinned-window .playlist-row:hover {
+  background: color-mix(in srgb, var(--playlist-selected-bg) 55%, var(--playlist-bg));
+}
+.playlist-window.legacy-skinned-window .playlist-row.selected {
+  color: var(--playlist-current);
+  background: var(--playlist-selected-bg);
+}
+.playlist-window.legacy-skinned-window .playlist-empty {
+  color: var(--playlist-normal);
+  font: 8px/12px "Courier New", monospace;
+  padding: 2px;
+}
+.playlist-window.legacy-skinned-window .playlist-status {
+  left: 127px;
+  right: 51px;
+  bottom: 13px;
+  height: 9px;
+  z-index: 4;
+  color: var(--playlist-current);
+  font: 6px/8px "Courier New", monospace;
+  opacity: .9;
+}
+.playlist-window.legacy-skinned-window .playlist-toolbar {
+  left: 0;
+  right: 0;
+  bottom: 12px;
+  height: 18px;
+  display: block;
+  pointer-events: none;
+}
+.playlist-window.legacy-skinned-window .playlist-toolbar > button,
+.playlist-window.legacy-skinned-window .playlist-toolbar > .menu-anchor {
+  position: absolute;
+  top: 0;
+  width: 25px;
+  height: 18px;
+  margin: 0;
+  pointer-events: auto;
+}
+.playlist-window.legacy-skinned-window .playlist-toolbar > .menu-anchor > button,
+.playlist-window.legacy-skinned-window .playlist-toolbar > button {
+  width: 25px;
+  min-width: 25px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: transparent;
+  text-shadow: none;
+}
+.playlist-window.legacy-skinned-window .playlist-toolbar > .menu-anchor > button:active,
+.playlist-window.legacy-skinned-window .playlist-toolbar > button:active {
+  border: 0 !important;
+  transform: none !important;
+}
+.playlist-window.legacy-skinned-window .playlist-toolbar > .menu-anchor:nth-child(1) { left: 11px; }
+.playlist-window.legacy-skinned-window .playlist-toolbar > button:nth-child(2) { left: 40px; }
+.playlist-window.legacy-skinned-window .playlist-toolbar > button:nth-child(3) { left: 69px; }
+.playlist-window.legacy-skinned-window .playlist-toolbar > .menu-anchor:nth-child(4) { left: 98px; }
+.playlist-window.legacy-skinned-window .playlist-toolbar > .list-options {
+  left: auto;
+  right: 22px;
+}
+.playlist-window.legacy-skinned-window .popup-menu {
+  color: #111;
+  pointer-events: auto;
+}
+.playlist-window.legacy-skinned-window .popup-menu button {
+  color: #111;
+  background: transparent;
+}
+.playlist-window.legacy-skinned-window .popup-menu button:hover:not(:disabled) {
+  color: #fff;
+  background: #123890;
+}
+.playlist-window.legacy-skinned-window .popup-menu button:disabled { color: #777; }
+.playlist-window.legacy-skinned-window.amp-window-shaded > .amp-titlebar {
+  background: transparent !important;
+}
+
+/* Scaling ---------------------------------------------------------------- */
+.desktop[data-double-size="true"] .amp-window {
+  image-rendering: pixelated;
+  transform-origin: top left;
+}
+.desktop[data-double-size="true"] .amp-window .playlist-list {
+  scrollbar-width: thin;
+}
