@@ -3,6 +3,9 @@ export type Track = {
   artist: string;
   title: string;
   duration: number;
+  source?: "demo" | "spotify";
+  uri?: string;
+  albumArtUrl?: string | null;
 };
 
 export type WindowId = "main" | "equalizer" | "playlist";
