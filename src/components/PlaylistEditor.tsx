@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { importWinampSkin } from "../skins/skinLoader";
+import type { SkinLoadSummary } from "../skins/useSkinManager";
 import type { Track, WindowPosition } from "../types/player";
 import { WindowFrame } from "./WindowFrame";
 
@@ -8,29 +8,53 @@ type Props = {
   tracks: Track[];
   currentIndex: number;
   activeSkin: string;
+  skinLoading: boolean;
   onMove: (position: WindowPosition) => void;
   onSelectTrack: (index: number) => void;
-  onSkinLoaded: (name: string) => void;
+  onLoadSkin: (file: File) => Promise<SkinLoadSummary>;
+  onResetSkin: () => void;
 };
 
 function time(value: number) {
   return `${Math.floor(value / 60)}:${String(value % 60).padStart(2, "0")}`;
 }
 
-export function PlaylistEditor({ position, tracks, currentIndex, activeSkin, onMove, onSelectTrack, onSkinLoaded }: Props) {
+export function PlaylistEditor({
+  position,
+  tracks,
+  currentIndex,
+  activeSkin,
+  skinLoading,
+  onMove,
+  onSelectTrack,
+  onLoadSkin,
+  onResetSkin,
+}: Props) {
   const fileInput = useRef<HTMLInputElement>(null);
   const [menu, setMenu] = useState<"add" | "list" | null>(null);
   const [status, setStatus] = useState("LOCAL DEMO QUEUE");
 
   const loadSkin = async (file?: File) => {
     if (!file) return;
+
+    setStatus("LOADING SKIN...");
     try {
-      const skin = await importWinampSkin(file);
-      onSkinLoaded(skin.name);
-      setStatus(`SKIN: ${skin.name.toUpperCase()} (${skin.supportedAssets.length} ASSETS)`);
+      const summary = await onLoadSkin(file);
+      const warningSuffix = summary.warnings.length
+        ? ` · ${summary.warnings.length} WARNING${summary.warnings.length === 1 ? "" : "S"}`
+        : "";
+      setStatus(
+        `SKIN: ${summary.name.toUpperCase()} (${summary.assetCount} ASSETS / ${summary.renderedSpriteCount} SPRITES)${warningSuffix}`,
+      );
     } catch (error) {
       setStatus(error instanceof Error ? error.message.toUpperCase() : "SKIN LOAD FAILED");
     }
+  };
+
+  const resetSkin = () => {
+    onResetSkin();
+    setMenu(null);
+    setStatus("AMP99 DEFAULT SKIN RESTORED");
   };
 
   return (
@@ -59,12 +83,25 @@ export function PlaylistEditor({ position, tracks, currentIndex, activeSkin, onM
             <div className="popup-menu align-right">
               <button disabled>Spotify Playlists</button>
               <button disabled>Create Spotify Playlist...</button>
-              <button onClick={() => fileInput.current?.click()}>Load Winamp Skin...</button>
+              <button disabled={skinLoading} onClick={() => fileInput.current?.click()}>
+                {skinLoading ? "Loading Skin..." : "Load Winamp Skin..."}
+              </button>
+              <button onClick={resetSkin}>Use AMP99 Default</button>
               <button onClick={() => setStatus("QUEUE CLEARED (DEMO ONLY)")}>Clear Playlist</button>
             </div>
           )}
         </div>
-        <input ref={fileInput} className="hidden-file" type="file" accept=".wsz,.zip" onChange={(event) => loadSkin(event.target.files?.[0])} />
+        <input
+          ref={fileInput}
+          className="hidden-file"
+          type="file"
+          accept=".wsz,.zip"
+          onChange={(event) => {
+            const file = event.currentTarget.files?.[0];
+            event.currentTarget.value = "";
+            void loadSkin(file);
+          }}
+        />
       </div>
     </WindowFrame>
   );
