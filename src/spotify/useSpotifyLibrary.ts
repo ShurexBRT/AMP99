@@ -6,11 +6,14 @@ import {
   handleSpotifyAuthorizationCallback,
 } from "./auth";
 import {
+  addSpotifyPlaylistItems,
   createCurrentUserPlaylist,
   getCurrentSpotifyUser,
   getCurrentUserPlaylists,
   getPlaylistTracks,
   getSavedTracks,
+  removeSpotifyPlaylistItems,
+  searchSpotifyTracks,
 } from "./api";
 import {
   SpotifyApiError,
@@ -229,9 +232,64 @@ export function useSpotifyLibrary() {
 
       try {
         const created = await createCurrentUserPlaylist({ name, isPublic });
-        const nextPlaylists = await fetchAllPlaylists();
-        setPlaylists(nextPlaylists);
+        setPlaylists(await fetchAllPlaylists());
         return created;
+      } catch (requestError) {
+        const readable = asReadableError(requestError);
+        setError(readable.message);
+        throw readable;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
+
+  const searchTracks = useCallback(async (query: string) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      return (await searchSpotifyTracks(query, { limit: 10, offset: 0 })).items;
+    } catch (requestError) {
+      const readable = asReadableError(requestError);
+      setError(readable.message);
+      throw readable;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const addTrackToPlaylist = useCallback(async (playlistId: string, uri: string) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const snapshotId = await addSpotifyPlaylistItems(playlistId, [uri]);
+      setPlaylists(await fetchAllPlaylists());
+      return snapshotId;
+    } catch (requestError) {
+      const readable = asReadableError(requestError);
+      setError(readable.message);
+      throw readable;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const removeTrackFromPlaylist = useCallback(
+    async (playlistId: string, uri: string, snapshotId?: string | null) => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const nextSnapshotId = await removeSpotifyPlaylistItems(
+          playlistId,
+          [uri],
+          snapshotId,
+        );
+        setPlaylists(await fetchAllPlaylists());
+        return nextSnapshotId;
       } catch (requestError) {
         const readable = asReadableError(requestError);
         setError(readable.message);
@@ -255,5 +313,8 @@ export function useSpotifyLibrary() {
     loadPlaylist,
     loadLikedSongs,
     createPlaylist,
+    searchTracks,
+    addTrackToPlaylist,
+    removeTrackFromPlaylist,
   };
 }
