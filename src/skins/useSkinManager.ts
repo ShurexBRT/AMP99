@@ -1,4 +1,11 @@
-import { useCallback, useState, useSyncExternalStore } from "react";
+import { invoke, isTauri } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import {
+  useCallback,
+  useEffect,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { importWinampSkin } from "./skinLoader";
 import {
   renderCoreSkinSprites,
@@ -6,6 +13,7 @@ import {
 } from "./skinRenderer";
 
 const DEFAULT_SKIN_NAME = "AMP99 Default";
+const OPEN_SKIN_EVENT = "amp99://open-skin";
 let sharedRenderedSkin: RenderedSkinSprites | null = null;
 const sharedListeners = new Set<() => void>();
 
@@ -17,6 +25,11 @@ function publishSharedSkin(next: RenderedSkinSprites | null) {
 function subscribeSharedSkin(listener: () => void) {
   sharedListeners.add(listener);
   return () => sharedListeners.delete(listener);
+}
+
+function filenameFromPath(path: string): string {
+  const parts = path.split(/[\\/]/);
+  return parts[parts.length - 1] || "AMP99-skin.wsz";
 }
 
 export function useCurrentSkin(): RenderedSkinSprites | null {
@@ -62,6 +75,51 @@ export function useSkinManager() {
       setLoading(false);
     }
   }, []);
+
+  const loadSkinPath = useCallback(
+    async (path: string) => {
+      const bytes = await invoke<number[]>("read_skin_file", { path });
+      const file = new File([new Uint8Array(bytes)], filenameFromPath(path), {
+        type: "application/zip",
+      });
+      return loadSkin(file);
+    },
+    [loadSkin],
+  );
+
+  useEffect(() => {
+    if (!isTauri()) return;
+
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+
+    void (async () => {
+      unlisten = await listen<string>(OPEN_SKIN_EVENT, (event) => {
+        if (!disposed && event.payload) {
+          void loadSkinPath(event.payload).catch((error) => {
+            console.error("AMP99 could not open associated skin:", error);
+          });
+        }
+      });
+
+      if (disposed) {
+        unlisten();
+        return;
+      }
+
+      const pending = await invoke<string | null>("take_pending_skin");
+      if (!disposed && pending) {
+        await loadSkinPath(pending);
+      }
+    })().catch((error) => {
+      console.error("AMP99 skin file-association setup failed:", error);
+    });
+
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [loadSkinPath]);
 
   const resetSkin = useCallback(() => {
     setActiveSkin(DEFAULT_SKIN_NAME);
