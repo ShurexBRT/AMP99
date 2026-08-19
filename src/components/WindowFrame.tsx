@@ -10,8 +10,15 @@ import type { WindowId, WindowPosition } from "../types/player";
 
 const WINDOW_FOCUS_EVENT = "amp99-window-focus";
 
+function inferWindowId(title: string): WindowId {
+  const normalized = title.toLowerCase();
+  if (normalized.includes("equalizer")) return "equalizer";
+  if (normalized.includes("playlist")) return "playlist";
+  return "main";
+}
+
 type Props = PropsWithChildren<{
-  windowId: WindowId;
+  windowId?: WindowId;
   title: string;
   position: WindowPosition;
   width: number;
@@ -44,11 +51,12 @@ export function WindowFrame({
   onMove,
   children,
 }: Props) {
-  const [active, setActive] = useState(windowId === "main");
+  const resolvedWindowId = windowId ?? inferWindowId(title);
+  const [active, setActive] = useState(resolvedWindowId === "main");
   const [shaded, setShaded] = useState(false);
   const renderedHeight = shaded ? 14 : height;
   const drag = useDraggableWindow({
-    id: windowId,
+    id: resolvedWindowId,
     position,
     onMove,
     width,
@@ -58,15 +66,15 @@ export function WindowFrame({
   useEffect(() => {
     const listener = (event: Event) => {
       const focusedId = (event as CustomEvent<WindowId>).detail;
-      setActive(focusedId === windowId);
+      setActive(focusedId === resolvedWindowId);
     };
     window.addEventListener(WINDOW_FOCUS_EVENT, listener);
     return () => window.removeEventListener(WINDOW_FOCUS_EVENT, listener);
-  }, [windowId]);
+  }, [resolvedWindowId]);
 
   const activate = () => {
     window.dispatchEvent(
-      new CustomEvent<WindowId>(WINDOW_FOCUS_EVENT, { detail: windowId }),
+      new CustomEvent<WindowId>(WINDOW_FOCUS_EVENT, { detail: resolvedWindowId }),
     );
   };
 
@@ -97,7 +105,7 @@ export function WindowFrame({
         backgroundSize: shaded ? `${width}px 14px` : undefined,
       }}
       aria-label={title}
-      data-window-id={windowId}
+      data-window-id={resolvedWindowId}
       data-active={active ? "true" : "false"}
       data-shaded={shaded ? "true" : "false"}
       onPointerDownCapture={activate}
