@@ -1,4 +1,5 @@
 import { useState, type CSSProperties } from "react";
+import { useDesktopMediaControls } from "../platform/useDesktopMediaControls";
 import type { Track, WindowPosition } from "../types/player";
 import { WindowFrame } from "./WindowFrame";
 
@@ -249,6 +250,15 @@ function DefaultMainPlayer(props: Props) {
 }
 
 export function MainPlayer(props: Props) {
+  useDesktopMediaControls({
+    track: props.track,
+    isPlaying: props.isPlaying,
+    onTogglePlay: props.onTogglePlay,
+    onStop: props.onStop,
+    onPrevious: props.onPrevious,
+    onNext: props.onNext,
+  });
+
   const hasLegacySkin = Boolean(props.skinSprites?.get("main.windowBackground"));
 
   if (hasLegacySkin && props.skinSprites) {
