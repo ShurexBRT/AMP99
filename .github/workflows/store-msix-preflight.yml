@@ -1,0 +1,72 @@
+name: Microsoft Store MSIX preflight
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  store-msix:
+    name: Build unsigned Store MSIX preflight
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Generate AMP99 platform and Store icons
+        shell: pwsh
+        run: npm run tauri:icon
+
+      - name: Build frontend
+        shell: pwsh
+        run: npm run build
+
+      - name: Build AMP99 release executable
+        shell: pwsh
+        run: cargo build --release --manifest-path src-tauri/Cargo.toml
+
+      - name: Build and verify unsigned Store MSIX
+        shell: pwsh
+        run: |
+          ./scripts/build-store-msix.ps1 `
+            -IdentityName "AMP99.Dev" `
+            -Publisher "CN=AMP99 Development" `
+            -PublisherDisplayName "AMP99" `
+            -Version "0.1.0.0"
+
+      - name: Show Store package
+        shell: pwsh
+        run: Get-ChildItem -Path src-tauri/target/release/bundle/msix -File | Select-Object FullName, Length
+
+      - name: Upload unsigned Store preflight package
+        uses: actions/upload-artifact@v4
+        with:
+          name: AMP99-store-msix-preflight
+          path: src-tauri/target/release/bundle/msix/*.msix
+          if-no-files-found: error
+          retention-days: 14
