@@ -7,7 +7,13 @@ import {
 
 const CORE_SHEETS: readonly SkinSpriteSheet[] = [
   "main",
+  "titlebar",
   "cbuttons",
+  "shufrep",
+  "posbar",
+  "volume",
+  "balance",
+  "monoster",
   "numbers",
   "playpaus",
 ];
