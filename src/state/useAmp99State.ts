@@ -10,7 +10,7 @@ const defaultPositions: Record<WindowId, WindowPosition> = {
 };
 
 const demoTracks: Track[] = [
-  { id: "1", artist: "AMP99", title: "Play it like it's '99", duration: 243 },
+  { id: "1", artist: "AMP99", title: "Play it like it's 1999", duration: 243 },
   { id: "2", artist: "The Debuggers", title: "Works On My Machine", duration: 218 },
   { id: "3", artist: "Null Pointer", title: "Segmentation Groove", duration: 196 },
   { id: "4", artist: "Packet Loss", title: "Retry Again", duration: 264 },

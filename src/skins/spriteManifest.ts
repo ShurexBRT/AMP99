@@ -16,36 +16,37 @@ export type SkinSpriteSheet =
   | "balance"
   | "monoster"
   | "numbers"
-  | "playpaus";
+  | "playpaus"
+  | "eqmain"
+  | "eq_ex"
+  | "pledit";
 
 /**
- * Core Winamp-classic sprite geometry used by AMP99's first skin renderer.
+ * Classic Winamp 2.x compatibility geometry used by AMP99.
  *
- * These are compatibility coordinates only. No third-party bitmap assets are
- * bundled with AMP99. The geometry was cross-checked against the MIT-licensed
- * Webamp implementation; see THIRD_PARTY_NOTICES.md.
+ * These are sprite coordinates only. AMP99 never bundles Winamp artwork or
+ * third-party skins. Geometry was cross-checked against the MIT-licensed
+ * Webamp classic-skin implementation; see THIRD_PARTY_NOTICES.md.
  */
 export const CORE_CLASSIC_SPRITES: Readonly<
   Record<SkinSpriteSheet, readonly SkinSprite[]>
 > = {
   main: [
-    {
-      name: "main.windowBackground",
-      x: 0,
-      y: 0,
-      width: 275,
-      height: 116,
-    },
+    { name: "main.windowBackground", x: 0, y: 0, width: 275, height: 116 },
   ],
   titlebar: [
     { name: "main.titlebarInactive", x: 27, y: 15, width: 275, height: 14 },
     { name: "main.titlebarActive", x: 27, y: 0, width: 275, height: 14 },
+    { name: "main.shadeActive", x: 27, y: 29, width: 275, height: 14 },
+    { name: "main.shadeInactive", x: 27, y: 42, width: 275, height: 14 },
     { name: "main.options", x: 0, y: 0, width: 9, height: 9 },
     { name: "main.optionsPressed", x: 0, y: 9, width: 9, height: 9 },
     { name: "main.minimize", x: 9, y: 0, width: 9, height: 9 },
     { name: "main.minimizePressed", x: 9, y: 9, width: 9, height: 9 },
     { name: "main.shade", x: 0, y: 18, width: 9, height: 9 },
     { name: "main.shadePressed", x: 9, y: 18, width: 9, height: 9 },
+    { name: "main.unshade", x: 0, y: 27, width: 9, height: 9 },
+    { name: "main.unshadePressed", x: 9, y: 27, width: 9, height: 9 },
     { name: "main.close", x: 18, y: 0, width: 9, height: 9 },
     { name: "main.closePressed", x: 18, y: 9, width: 9, height: 9 },
   ],
@@ -113,6 +114,57 @@ export const CORE_CLASSIC_SPRITES: Readonly<
     { name: "main.playing", x: 0, y: 0, width: 9, height: 9 },
     { name: "main.paused", x: 9, y: 0, width: 9, height: 9 },
     { name: "main.stopped", x: 18, y: 0, width: 9, height: 9 },
+  ],
+  eqmain: [
+    { name: "eq.windowBackground", x: 0, y: 0, width: 275, height: 116 },
+    { name: "eq.titlebarActive", x: 0, y: 134, width: 275, height: 14 },
+    { name: "eq.titlebarInactive", x: 0, y: 149, width: 275, height: 14 },
+    { name: "eq.on", x: 10, y: 119, width: 24, height: 12 },
+    { name: "eq.onPressed", x: 128, y: 119, width: 24, height: 12 },
+    { name: "eq.onSelected", x: 69, y: 119, width: 24, height: 12 },
+    { name: "eq.auto", x: 34, y: 119, width: 34, height: 12 },
+    { name: "eq.autoPressed", x: 152, y: 119, width: 34, height: 12 },
+    { name: "eq.autoSelected", x: 93, y: 119, width: 34, height: 12 },
+    { name: "eq.preset", x: 224, y: 164, width: 44, height: 12 },
+    { name: "eq.presetPressed", x: 224, y: 176, width: 44, height: 12 },
+    { name: "eq.sliderThumb", x: 0, y: 164, width: 11, height: 11 },
+    { name: "eq.sliderThumbPressed", x: 0, y: 176, width: 11, height: 11 },
+    { name: "eq.close", x: 0, y: 116, width: 9, height: 9 },
+    { name: "eq.closePressed", x: 0, y: 125, width: 9, height: 9 },
+    { name: "eq.shade", x: 254, y: 137, width: 9, height: 9 },
+  ],
+  eq_ex: [
+    { name: "eq.shadeActive", x: 0, y: 0, width: 275, height: 14 },
+    { name: "eq.shadeInactive", x: 0, y: 15, width: 275, height: 14 },
+    { name: "eq.shadeButtonPressed", x: 1, y: 38, width: 9, height: 9 },
+    { name: "eq.shadeClose", x: 11, y: 38, width: 9, height: 9 },
+    { name: "eq.shadeClosePressed", x: 11, y: 47, width: 9, height: 9 },
+  ],
+  pledit: [
+    { name: "playlist.topLeftActive", x: 0, y: 0, width: 25, height: 20 },
+    { name: "playlist.topMiddleActive", x: 127, y: 0, width: 25, height: 20 },
+    { name: "playlist.topCenterActive", x: 26, y: 0, width: 100, height: 20 },
+    { name: "playlist.topRightActive", x: 153, y: 0, width: 25, height: 20 },
+    { name: "playlist.topLeftInactive", x: 0, y: 21, width: 25, height: 20 },
+    { name: "playlist.topMiddleInactive", x: 127, y: 21, width: 25, height: 20 },
+    { name: "playlist.topCenterInactive", x: 26, y: 21, width: 100, height: 20 },
+    { name: "playlist.topRightInactive", x: 153, y: 21, width: 25, height: 20 },
+    { name: "playlist.leftSide", x: 0, y: 42, width: 25, height: 29 },
+    { name: "playlist.rightSide", x: 26, y: 42, width: 25, height: 29 },
+    { name: "playlist.bottomLeft", x: 0, y: 72, width: 125, height: 38 },
+    { name: "playlist.bottomMiddle", x: 179, y: 0, width: 25, height: 38 },
+    { name: "playlist.bottomRight", x: 126, y: 72, width: 150, height: 38 },
+    { name: "playlist.close", x: 167, y: 3, width: 9, height: 9 },
+    { name: "playlist.closePressed", x: 52, y: 42, width: 9, height: 9 },
+    { name: "playlist.shade", x: 157, y: 3, width: 9, height: 9 },
+    { name: "playlist.shadePressed", x: 62, y: 42, width: 9, height: 9 },
+    { name: "playlist.shadeLeft", x: 72, y: 42, width: 25, height: 14 },
+    { name: "playlist.shadeMiddle", x: 72, y: 57, width: 25, height: 14 },
+    { name: "playlist.shadeRightActive", x: 99, y: 42, width: 50, height: 14 },
+    { name: "playlist.shadeRightInactive", x: 99, y: 57, width: 50, height: 14 },
+    { name: "playlist.shadeClose", x: 138, y: 45, width: 9, height: 9 },
+    { name: "playlist.shadeButton", x: 128, y: 45, width: 9, height: 9 },
+    { name: "playlist.shadeButtonPressed", x: 150, y: 42, width: 9, height: 9 },
   ],
 };
 
