@@ -1,0 +1,75 @@
+name: Windows Tauri bundle
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  windows-bundle:
+    name: Build Windows installers
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Generate AMP99 platform icons
+        shell: pwsh
+        run: npx tauri icon --output src-tauri/icons src-tauri/app-icon.svg
+
+      - name: Build AMP99 MSI and NSIS installers
+        shell: pwsh
+        run: |
+          & npm.cmd run tauri -- build --bundles msi,nsis 2>&1 | Tee-Object -FilePath tauri-build.log
+          $exitCode = $LASTEXITCODE
+          if ($exitCode -ne 0) {
+            exit $exitCode
+          }
+
+      - name: Upload Tauri build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: AMP99-tauri-build-log
+          path: tauri-build.log
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Show generated bundles
+        if: success()
+        shell: pwsh
+        run: Get-ChildItem -Path src-tauri/target/release/bundle -Recurse | Select-Object FullName, Length
+
+      - name: Upload Windows bundle
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: AMP99-windows-dev-bundle
+          path: src-tauri/target/release/bundle/**/*
+          if-no-files-found: error
+          retention-days: 14
