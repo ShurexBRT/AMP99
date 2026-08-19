@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useState, useSyncExternalStore } from "react";
 import { importWinampSkin } from "./skinLoader";
 import {
   renderCoreSkinSprites,
@@ -6,6 +6,26 @@ import {
 } from "./skinRenderer";
 
 const DEFAULT_SKIN_NAME = "AMP99 Default";
+let sharedRenderedSkin: RenderedSkinSprites | null = null;
+const sharedListeners = new Set<() => void>();
+
+function publishSharedSkin(next: RenderedSkinSprites | null) {
+  sharedRenderedSkin = next;
+  for (const listener of sharedListeners) listener();
+}
+
+function subscribeSharedSkin(listener: () => void) {
+  sharedListeners.add(listener);
+  return () => sharedListeners.delete(listener);
+}
+
+export function useCurrentSkin(): RenderedSkinSprites | null {
+  return useSyncExternalStore(
+    subscribeSharedSkin,
+    () => sharedRenderedSkin,
+    () => null,
+  );
+}
 
 export type SkinLoadSummary = {
   name: string;
@@ -30,6 +50,7 @@ export function useSkinManager() {
 
       setActiveSkin(imported.name);
       setRenderedSkin(rendered);
+      publishSharedSkin(rendered);
 
       return {
         name: imported.name,
@@ -45,6 +66,7 @@ export function useSkinManager() {
   const resetSkin = useCallback(() => {
     setActiveSkin(DEFAULT_SKIN_NAME);
     setRenderedSkin(null);
+    publishSharedSkin(null);
   }, []);
 
   return {
