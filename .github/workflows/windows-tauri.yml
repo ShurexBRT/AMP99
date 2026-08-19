@@ -82,7 +82,7 @@ jobs:
           Stop-Process -Id $process.Id -Force
           Start-Sleep -Seconds 1
 
-      - name: Smoke-test MSI install, launch and uninstall
+      - name: Smoke-test MSI install, WSZ handoff, launch and uninstall
         if: success()
         shell: pwsh
         run: |
@@ -124,6 +124,13 @@ jobs:
             throw "AMP99 executable was not found in the requested MSI install directory."
           }
 
+          $wszAssociation = Get-Item -Path "Registry::HKEY_CLASSES_ROOT\.wsz" -ErrorAction SilentlyContinue
+          if (-not $wszAssociation) {
+            Write-SmokeLog "FAIL .wsz file association is missing from HKCR"
+            throw "AMP99 MSI did not register the .wsz file association."
+          }
+          Write-SmokeLog "PASS .wsz file association is registered"
+
           Write-SmokeLog "Launching installed executable: $installedExe"
           $process = Start-Process -FilePath $installedExe -PassThru
           Start-Sleep -Seconds 8
@@ -135,6 +142,26 @@ jobs:
           }
 
           Write-SmokeLog "PASS installed executable stayed alive for 8 seconds (PID $($process.Id))"
+
+          $testSkin = Join-Path $env:RUNNER_TEMP "amp99-single-instance-smoke.wsz"
+          Set-Content -Path $testSkin -Value "AMP99 invalid test archive: native handoff only" -NoNewline
+          Write-SmokeLog "Launching a secondary AMP99 instance with .wsz argument"
+          $secondary = Start-Process -FilePath $installedExe -ArgumentList "`"$testSkin`"" -PassThru
+          Start-Sleep -Seconds 4
+          $secondary.Refresh()
+          $process.Refresh()
+
+          if (-not $secondary.HasExited) {
+            Write-SmokeLog "FAIL secondary instance remained alive instead of handing off"
+            Stop-Process -Id $secondary.Id -Force -ErrorAction SilentlyContinue
+            throw "AMP99 single-instance .wsz handoff did not terminate the secondary process."
+          }
+          if ($process.HasExited) {
+            Write-SmokeLog "FAIL primary instance exited during .wsz handoff"
+            throw "AMP99 primary process exited during .wsz single-instance handoff."
+          }
+          Write-SmokeLog "PASS secondary .wsz launch handed off while primary stayed alive"
+
           Stop-Process -Id $process.Id -Force
           Start-Sleep -Seconds 1
 
@@ -151,7 +178,7 @@ jobs:
             throw "AMP99 MSI silent uninstall failed with exit code $($uninstaller.ExitCode)."
           }
 
-          Write-SmokeLog "PASS MSI install, launch and uninstall smoke test"
+          Write-SmokeLog "PASS MSI install, WSZ association/handoff, launch and uninstall smoke test"
 
       - name: Upload Windows smoke diagnostics
         if: always()

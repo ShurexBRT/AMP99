@@ -57,6 +57,8 @@ export function useDraggableWindow({
     x: number;
     y: number;
   } | null>(null);
+  const moveRef = useRef(onMove);
+  moveRef.current = onMove;
 
   useEffect(() => {
     windowRegistry.set(id, { id, position, width, height });
@@ -64,6 +66,28 @@ export function useDraggableWindow({
       windowRegistry.delete(id);
     };
   }, [id, position, width, height]);
+
+  useEffect(() => {
+    const clampToViewport = () => {
+      const scale = displayScale();
+      const maxX = Math.max(0, window.innerWidth - width * scale);
+      const maxY = Math.max(0, window.innerHeight - height * scale);
+      const next = {
+        x: Math.min(maxX, Math.max(0, position.x)),
+        y: Math.min(maxY, Math.max(0, position.y)),
+      };
+      if (next.x !== position.x || next.y !== position.y) {
+        moveRef.current(next);
+      }
+    };
+
+    window.addEventListener("resize", clampToViewport);
+    window.visualViewport?.addEventListener("resize", clampToViewport);
+    return () => {
+      window.removeEventListener("resize", clampToViewport);
+      window.visualViewport?.removeEventListener("resize", clampToViewport);
+    };
+  }, [position.x, position.y, width, height]);
 
   const onPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
     if ((event.target as HTMLElement).closest("button,input,select")) return;

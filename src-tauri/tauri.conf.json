@@ -30,9 +30,17 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "category": "Music",
     "publisher": "Predrag Jovanovic",
-    "shortDescription": "Classic late-90s music player experience for Spotify.",
-    "longDescription": "AMP99 is a free retro desktop music player inspired by late-90s media player workflows. Play it like it's 1999.",
+    "shortDescription": "Classic late-90s desktop music player with legacy skin support.",
+    "longDescription": "AMP99 is a free retro desktop music player inspired by late-90s desktop player workflows. Play it like it's 1999.",
+    "fileAssociations": [
+      {
+        "ext": ["wsz"],
+        "name": "AMP99 Skin",
+        "description": "AMP99 / Winamp-compatible skin"
+      }
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
