@@ -4,6 +4,8 @@
 
 AMP99 is a free Windows desktop player project that recreates the classic late-90s three-window music-player workflow while using Spotify as the planned playback and library backend.
 
+> **AI contributors:** read [`AGENTS.md`](./AGENTS.md) completely before changing code. It defines task claiming, branch ownership, conflict prevention, architecture boundaries and handoff rules for parallel agent work.
+
 ## v0.1 foundation
 
 - Tauri 2 + React + TypeScript + Vite
