@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import type { SkinLoadSummary } from "../skins/useSkinManager";
-import type { SpotifyPlaylist } from "../spotify/types";
+import type { SpotifyPlaylist, SpotifyTrack } from "../spotify/types";
 import type { Track, WindowPosition } from "../types/player";
 import { WindowFrame } from "./WindowFrame";
 
@@ -15,6 +15,8 @@ type Props = {
   spotifyPlaylists: SpotifyPlaylist[];
   spotifyLoading: boolean;
   spotifyError: string | null;
+  activeSpotifyPlaylist: SpotifyPlaylist | null;
+  spotifyPlaylistEditable: boolean;
   onMove: (position: WindowPosition) => void;
   onSelectTrack: (index: number) => void;
   onLoadSkin: (file: File) => Promise<SkinLoadSummary>;
@@ -30,6 +32,9 @@ type Props = {
     name: string,
     isPublic: boolean,
   ) => Promise<SpotifyPlaylist>;
+  onSearchSpotifyTracks: (query: string) => Promise<SpotifyTrack[]>;
+  onAddSpotifyTrack: (track: SpotifyTrack) => Promise<{ trackCount: number }>;
+  onRemoveSpotifyTrack: (track: Track) => Promise<{ trackCount: number }>;
   onClearQueue: () => void;
 };
 
@@ -54,6 +59,8 @@ export function PlaylistEditor({
   spotifyPlaylists,
   spotifyLoading,
   spotifyError,
+  activeSpotifyPlaylist,
+  spotifyPlaylistEditable,
   onMove,
   onSelectTrack,
   onLoadSkin,
@@ -64,6 +71,9 @@ export function PlaylistEditor({
   onLoadSpotifyPlaylist,
   onLoadLikedSongs,
   onCreateSpotifyPlaylist,
+  onSearchSpotifyTracks,
+  onAddSpotifyTrack,
+  onRemoveSpotifyTrack,
   onClearQueue,
 }: Props) {
   const fileInput = useRef<HTMLInputElement>(null);
@@ -72,6 +82,9 @@ export function PlaylistEditor({
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState("");
   const [newPlaylistPublic, setNewPlaylistPublic] = useState(false);
+  const [searchDialogOpen, setSearchDialogOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SpotifyTrack[]>([]);
 
   const loadSkin = async (file?: File) => {
     if (!file) return;
@@ -157,7 +170,51 @@ export function PlaylistEditor({
       setCreateDialogOpen(false);
       setNewPlaylistName("");
       setNewPlaylistPublic(false);
-      setStatus(`CREATED SPOTIFY PLAYLIST: ${created.name.toUpperCase()}`);
+      setStatus(`CREATED SPOTIFY PLAYLIST: ${created.name.toUpperCase()} · EDIT MODE`);
+    } catch (error) {
+      setStatus(errorMessage(error).toUpperCase());
+    }
+  };
+
+  const runSearch = async () => {
+    const query = searchQuery.trim();
+    if (!query) {
+      setStatus("ENTER A SPOTIFY SEARCH QUERY");
+      return;
+    }
+
+    setStatus(`SEARCHING SPOTIFY: ${query.toUpperCase()}...`);
+    try {
+      const results = await onSearchSpotifyTracks(query);
+      setSearchResults(results);
+      setStatus(`SPOTIFY SEARCH: ${results.length} RESULTS`);
+    } catch (error) {
+      setSearchResults([]);
+      setStatus(errorMessage(error).toUpperCase());
+    }
+  };
+
+  const addSearchResult = async (track: SpotifyTrack) => {
+    setStatus(`ADDING: ${track.artist.toUpperCase()} - ${track.title.toUpperCase()}...`);
+    try {
+      const result = await onAddSpotifyTrack(track);
+      setStatus(`ADDED TO ${activeSpotifyPlaylist?.name.toUpperCase() ?? "SPOTIFY PLAYLIST"} · ${result.trackCount} TRACKS`);
+    } catch (error) {
+      setStatus(errorMessage(error).toUpperCase());
+    }
+  };
+
+  const removeCurrentTrack = async () => {
+    const track = tracks[currentIndex];
+    if (!track) {
+      setStatus("NO TRACK SELECTED");
+      return;
+    }
+
+    setStatus(`REMOVING: ${track.artist.toUpperCase()} - ${track.title.toUpperCase()}...`);
+    try {
+      const result = await onRemoveSpotifyTrack(track);
+      setStatus(`REMOVED FROM ${activeSpotifyPlaylist?.name.toUpperCase() ?? "SPOTIFY PLAYLIST"} · ${result.trackCount} TRACKS`);
     } catch (error) {
       setStatus(errorMessage(error).toUpperCase());
     }
@@ -175,6 +232,10 @@ export function PlaylistEditor({
     setStatus("SPOTIFY DISCONNECTED");
   };
 
+  const editContext = activeSpotifyPlaylist
+    ? `${activeSpotifyPlaylist.name.toUpperCase()} ${spotifyPlaylistEditable ? "[EDIT]" : "[READ ONLY]"}`
+    : null;
+
   return (
     <WindowFrame title="AMP99 PLAYLIST EDITOR" position={position} width={275} height={232} onMove={onMove} className="playlist-window">
       <div className="playlist-list" onClick={() => setMenu(null)}>
@@ -190,6 +251,7 @@ export function PlaylistEditor({
       </div>
       <div className="playlist-status">
         {spotifyError ? `SPOTIFY: ${spotifyError.toUpperCase()} · ` : ""}
+        {editContext ? `${editContext} · ` : ""}
         {status} · {activeSkin.toUpperCase()}
       </div>
       <div className="playlist-toolbar">
@@ -197,13 +259,22 @@ export function PlaylistEditor({
           <button onClick={() => setMenu(menu === "add" ? null : "add")}>ADD</button>
           {menu === "add" && (
             <div className="popup-menu">
-              <button disabled>Spotify Search...</button>
+              <button
+                disabled={!spotifyAuthenticated || !spotifyPlaylistEditable || spotifyLoading}
+                onClick={() => { setMenu(null); setSearchDialogOpen(true); }}
+              >
+                Spotify Search...
+              </button>
               <button disabled={!spotifyAuthenticated || spotifyLoading} onClick={() => void loadLikedSongs()}>Liked Songs</button>
               <button disabled={!spotifyAuthenticated || spotifyLoading} onClick={() => setMenu("spotify")}>Spotify Playlist...</button>
             </div>
           )}
         </div>
-        <button>REM</button>
+        <button
+          disabled={!spotifyPlaylistEditable || spotifyLoading || !tracks[currentIndex]?.uri}
+          title={spotifyPlaylistEditable ? "Remove selected track from Spotify playlist" : "Load an editable Spotify playlist first"}
+          onClick={() => void removeCurrentTrack()}
+        >REM</button>
         <button>SEL</button>
         <button>MISC</button>
         <div className="menu-anchor list-options">
@@ -281,12 +352,8 @@ export function PlaylistEditor({
                 value={newPlaylistName}
                 onChange={(event) => setNewPlaylistName(event.target.value)}
                 onKeyDown={(event) => {
-                  if (event.key === "Enter" && !spotifyLoading) {
-                    void submitNewPlaylist();
-                  }
-                  if (event.key === "Escape") {
-                    setCreateDialogOpen(false);
-                  }
+                  if (event.key === "Enter" && !spotifyLoading) void submitNewPlaylist();
+                  if (event.key === "Escape") setCreateDialogOpen(false);
                 }}
               />
             </label>
@@ -299,6 +366,46 @@ export function PlaylistEditor({
                 {spotifyLoading ? "CREATING..." : "CREATE"}
               </button>
               <button disabled={spotifyLoading} onClick={() => setCreateDialogOpen(false)}>CANCEL</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {searchDialogOpen && (
+        <div className="playlist-dialog-backdrop" role="presentation">
+          <div className="classic-dialog spotify-search-dialog" role="dialog" aria-modal="true" aria-labelledby="spotify-search-title">
+            <div id="spotify-search-title" className="classic-dialog-title">SPOTIFY SEARCH</div>
+            <div className="spotify-search-controls">
+              <input
+                autoFocus
+                value={searchQuery}
+                placeholder="Artist or track..."
+                onChange={(event) => setSearchQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !spotifyLoading) void runSearch();
+                  if (event.key === "Escape") setSearchDialogOpen(false);
+                }}
+              />
+              <button disabled={spotifyLoading || !searchQuery.trim()} onClick={() => void runSearch()}>SEARCH</button>
+            </div>
+            <div className="spotify-search-results">
+              {searchResults.length === 0 ? (
+                <div className="spotify-search-empty">{spotifyLoading ? "SEARCHING..." : "NO RESULTS YET"}</div>
+              ) : searchResults.map((track) => (
+                <button
+                  key={track.id}
+                  disabled={spotifyLoading}
+                  title={`Add ${track.artist} - ${track.title}`}
+                  onClick={() => void addSearchResult(track)}
+                >
+                  <span className="search-add-mark">+</span>
+                  <span className="search-track-text">{track.artist} - {track.title}</span>
+                  <small>{time(track.durationSeconds)}</small>
+                </button>
+              ))}
+            </div>
+            <div className="classic-dialog-actions">
+              <button disabled={spotifyLoading} onClick={() => setSearchDialogOpen(false)}>CLOSE</button>
             </div>
           </div>
         </div>

@@ -102,7 +102,8 @@
   margin-bottom: 3px;
 }
 
-.classic-dialog-field input {
+.classic-dialog-field input,
+.spotify-search-controls input {
   width: 100%;
   height: 20px;
   padding: 2px 4px;
@@ -116,7 +117,8 @@
   font-size: 9px;
 }
 
-.classic-dialog-field input:focus {
+.classic-dialog-field input:focus,
+.spotify-search-controls input:focus {
   outline: 1px dotted #111;
   outline-offset: -4px;
 }
@@ -142,7 +144,8 @@
   padding: 4px 7px 6px;
 }
 
-.classic-dialog-actions button {
+.classic-dialog-actions button,
+.spotify-search-controls button {
   min-width: 62px;
   height: 20px;
   padding: 0 8px;
@@ -157,7 +160,8 @@
   text-shadow: none;
 }
 
-.classic-dialog-actions button:active:not(:disabled) {
+.classic-dialog-actions button:active:not(:disabled),
+.spotify-search-controls button:active:not(:disabled) {
   border-top-color: #555 !important;
   border-left-color: #555 !important;
   border-right-color: #fff !important;
@@ -165,6 +169,91 @@
   transform: none !important;
 }
 
-.classic-dialog-actions button:disabled {
+.classic-dialog-actions button:disabled,
+.spotify-search-controls button:disabled {
   color: #777;
+}
+
+.spotify-search-dialog {
+  width: 250px;
+}
+
+.spotify-search-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px;
+  padding: 0 5px 5px;
+}
+
+.spotify-search-controls button {
+  min-width: 54px;
+}
+
+.spotify-search-results {
+  height: 130px;
+  margin: 0 5px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  color: #4ed55a;
+  background: #050805;
+  border-top: 2px solid #555;
+  border-left: 2px solid #555;
+  border-right: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+}
+
+.spotify-search-results > button {
+  width: 100%;
+  min-height: 19px;
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) auto;
+  gap: 4px;
+  align-items: center;
+  padding: 2px 4px;
+  color: #4ed55a;
+  background: #050805;
+  border: 0;
+  text-align: left;
+  font: 8px/11px "Courier New", monospace;
+  text-shadow: none;
+}
+
+.spotify-search-results > button:hover:not(:disabled),
+.spotify-search-results > button:focus-visible:not(:disabled) {
+  color: #fff;
+  background: #123b75;
+  outline: none;
+}
+
+.spotify-search-results > button:active:not(:disabled) {
+  transform: none !important;
+}
+
+.spotify-search-results > button:disabled {
+  color: #7d8f7f;
+}
+
+.search-add-mark {
+  font-weight: 700;
+  text-align: center;
+}
+
+.search-track-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spotify-search-results small {
+  color: inherit;
+  font: 7px/9px "Courier New", monospace;
+}
+
+.spotify-search-empty {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  color: #55785a;
+  font: 8px/11px "Courier New", monospace;
 }
