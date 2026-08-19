@@ -6,7 +6,7 @@ const bands = ["PRE", "60", "170", "310", "600", "1K", "3K", "6K", "12K", "14K",
 
 export function Equalizer({ position, onMove }: { position: WindowPosition; onMove: (position: WindowPosition) => void }) {
   const [enabled, setEnabled] = useState(true);
-  const [values, setValues] = useState(() => bands.map((_, index) => index % 3 === 0 ? 70 : index % 2 ? 48 : 58));
+  const [values, setValues] = useState<number[]>(() => bands.map((_, index) => index % 3 === 0 ? 70 : index % 2 ? 48 : 58));
 
   const change = (index: number, value: number) => {
     setValues((current) => current.map((item, itemIndex) => itemIndex === index ? value : item));
