@@ -144,8 +144,6 @@ export function useSpotifyLibrary() {
     }
     initializedRef.current = true;
 
-    let cancelled = false;
-
     const initialize = async () => {
       const url = new URL(window.location.href);
       const hasCallbackPayload =
@@ -157,33 +155,23 @@ export function useSpotifyLibrary() {
           setLoading(true);
           await handleSpotifyAuthorizationCallback(url.toString());
           window.history.replaceState({}, document.title, "/");
-          if (!cancelled) {
-            setAuthenticated(true);
-          }
+          setAuthenticated(true);
         }
 
-        if (getStoredSpotifySession() && !cancelled) {
+        if (getStoredSpotifySession()) {
           await refreshLibrary();
         }
       } catch (initializationError) {
-        if (!cancelled) {
-          setError(readableSpotifyError(initializationError));
-          if (!getStoredSpotifySession()) {
-            setAuthenticated(false);
-          }
+        setError(readableSpotifyError(initializationError));
+        if (!getStoredSpotifySession()) {
+          setAuthenticated(false);
         }
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        setLoading(false);
       }
     };
 
     void initialize();
-
-    return () => {
-      cancelled = true;
-    };
   }, [refreshLibrary]);
 
   const connect = useCallback(async () => {
