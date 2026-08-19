@@ -83,6 +83,12 @@ type PageOptions = {
   offset?: number;
 };
 
+export type CreateSpotifyPlaylistInput = {
+  name: string;
+  isPublic?: boolean;
+  description?: string;
+};
+
 function normalizePageOptions(options?: PageOptions): Required<PageOptions> {
   const limit = Math.min(
     50,
@@ -343,4 +349,38 @@ export async function getPlaylistTracks(
     ...page,
     skippedNonTracks: Math.max(0, rawItems.length - items.length),
   };
+}
+
+export async function createCurrentUserPlaylist(
+  input: CreateSpotifyPlaylistInput,
+): Promise<SpotifyPlaylist> {
+  const name = input.name.trim();
+  if (!name) {
+    throw new Error("Playlist name is required.");
+  }
+
+  if (name.length > 100) {
+    throw new Error("Playlist name must be 100 characters or fewer.");
+  }
+
+  const raw = await requestSpotify<RawSpotifyPlaylist>("me/playlists", {
+    method: "POST",
+    body: JSON.stringify({
+      name,
+      public: input.isPublic ?? false,
+      description: input.description?.trim() || "Created with AMP99",
+    }),
+  });
+  const playlist = mapPlaylist(raw);
+
+  if (!playlist) {
+    throw new SpotifyApiError("Spotify returned an invalid playlist response.", {
+      status: 502,
+      retryAfterSeconds: null,
+      spotifyMessage: null,
+      code: "invalid_playlist_response",
+    });
+  }
+
+  return playlist;
 }

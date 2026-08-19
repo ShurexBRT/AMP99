@@ -16,6 +16,13 @@ const demoTracks: Track[] = [
   { id: "4", artist: "Packet Loss", title: "Retry Again", duration: 264 },
 ];
 
+const emptyTrack: Track = {
+  id: "amp99-empty",
+  artist: "AMP99",
+  title: "Queue is empty",
+  duration: 0,
+};
+
 function loadPositions(): Record<WindowId, WindowPosition> {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -30,6 +37,7 @@ export function useAmp99State() {
   const [playlistVisible, setPlaylistVisible] = useState(true);
   const [equalizerVisible, setEqualizerVisible] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [tracks, setTracks] = useState<Track[]>(demoTracks);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [volume, setVolume] = useState(74);
   const [balance, setBalance] = useState(0);
@@ -38,7 +46,7 @@ export function useAmp99State() {
   const [repeat, setRepeat] = useState(false);
   const [doubleSize, setDoubleSize] = useState(false);
 
-  const currentTrack = demoTracks[currentIndex];
+  const currentTrack = tracks[currentIndex] ?? tracks[0] ?? emptyTrack;
 
   const setWindowPosition = useCallback((id: WindowId, position: WindowPosition) => {
     setPositions((previous) => {
@@ -48,15 +56,28 @@ export function useAmp99State() {
     });
   }, []);
 
-  const previous = useCallback(() => {
-    setCurrentIndex((index) => (index - 1 + demoTracks.length) % demoTracks.length);
+  const replaceQueue = useCallback((nextTracks: Track[]) => {
+    setTracks(nextTracks);
+    setCurrentIndex(0);
     setProgress(0);
+    setIsPlaying(false);
   }, []);
 
-  const next = useCallback(() => {
-    setCurrentIndex((index) => (index + 1) % demoTracks.length);
+  const previous = useCallback(() => {
+    setCurrentIndex((index) => {
+      if (tracks.length === 0) return 0;
+      return (index - 1 + tracks.length) % tracks.length;
+    });
     setProgress(0);
-  }, []);
+  }, [tracks.length]);
+
+  const next = useCallback(() => {
+    setCurrentIndex((index) => {
+      if (tracks.length === 0) return 0;
+      return (index + 1) % tracks.length;
+    });
+    setProgress(0);
+  }, [tracks.length]);
 
   const api = useMemo(() => ({
     positions,
@@ -65,7 +86,7 @@ export function useAmp99State() {
     isPlaying,
     currentIndex,
     currentTrack,
-    tracks: demoTracks,
+    tracks,
     volume,
     balance,
     progress,
@@ -83,9 +104,10 @@ export function useAmp99State() {
     setShuffle,
     setRepeat,
     setDoubleSize,
+    replaceQueue,
     previous,
     next,
-  }), [positions, playlistVisible, equalizerVisible, isPlaying, currentIndex, currentTrack, volume, balance, progress, shuffle, repeat, doubleSize, setWindowPosition, previous, next]);
+  }), [positions, playlistVisible, equalizerVisible, isPlaying, currentIndex, currentTrack, tracks, volume, balance, progress, shuffle, repeat, doubleSize, setWindowPosition, replaceQueue, previous, next]);
 
   return api;
 }

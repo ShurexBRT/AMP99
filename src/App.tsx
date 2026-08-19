@@ -2,11 +2,30 @@ import { Equalizer } from "./components/Equalizer";
 import { MainPlayer } from "./components/MainPlayer";
 import { PlaylistEditor } from "./components/PlaylistEditor";
 import { useSkinManager } from "./skins/useSkinManager";
+import { spotifyTracksToPlayerQueue } from "./spotify/playerAdapter";
+import type { SpotifyPlaylist } from "./spotify/types";
+import { useSpotifyLibrary } from "./spotify/useSpotifyLibrary";
 import { useAmp99State } from "./state/useAmp99State";
 
 export default function App() {
   const amp = useAmp99State();
   const skin = useSkinManager();
+  const spotify = useSpotifyLibrary();
+
+  const loadSpotifyPlaylist = async (playlist: SpotifyPlaylist) => {
+    const result = await spotify.loadPlaylist(playlist.id);
+    amp.replaceQueue(spotifyTracksToPlayerQueue(result.tracks));
+    return {
+      trackCount: result.tracks.length,
+      skippedNonTracks: result.skippedNonTracks,
+    };
+  };
+
+  const loadLikedSongs = async () => {
+    const tracks = await spotify.loadLikedSongs();
+    amp.replaceQueue(spotifyTracksToPlayerQueue(tracks));
+    return { trackCount: tracks.length };
+  };
 
   return (
     <main className="desktop" data-double-size={amp.doubleSize ? "true" : "false"}>
@@ -46,10 +65,22 @@ export default function App() {
           currentIndex={amp.currentIndex}
           activeSkin={skin.activeSkin}
           skinLoading={skin.loading}
+          spotifyAuthenticated={spotify.authenticated}
+          spotifyDisplayName={spotify.profile?.displayName ?? null}
+          spotifyPlaylists={spotify.playlists}
+          spotifyLoading={spotify.loading}
+          spotifyError={spotify.error}
           onMove={(position) => amp.setWindowPosition("playlist", position)}
           onSelectTrack={(index) => { amp.setCurrentIndex(index); amp.setProgress(0); amp.setIsPlaying(true); }}
           onLoadSkin={skin.loadSkin}
           onResetSkin={skin.resetSkin}
+          onConnectSpotify={spotify.connect}
+          onDisconnectSpotify={spotify.disconnect}
+          onRefreshSpotify={spotify.refreshLibrary}
+          onLoadSpotifyPlaylist={loadSpotifyPlaylist}
+          onLoadLikedSongs={loadLikedSongs}
+          onCreateSpotifyPlaylist={(name, isPublic) => spotify.createPlaylist({ name, isPublic })}
+          onClearQueue={() => amp.replaceQueue([])}
         />
       )}
     </main>
