@@ -7,10 +7,12 @@ import {
   type ReactNode,
 } from "react";
 import { useDraggableWindow } from "../hooks/useDraggableWindow";
+import { hideHostWindowToTray, minimizeHostWindow } from "../platform/windowControls";
 import { useCurrentSkin } from "../skins/useSkinManager";
 import type { WindowId, WindowPosition } from "../types/player";
 
 const WINDOW_FOCUS_EVENT = "amp99-window-focus";
+const WINDOW_CLOSE_EVENT = "amp99-window-close";
 
 type WindowStyle = CSSProperties & {
   "--playlist-normal"?: string;
@@ -18,6 +20,8 @@ type WindowStyle = CSSProperties & {
   "--playlist-bg"?: string;
   "--playlist-selected-bg"?: string;
 };
+
+type ControlKind = "minimize" | "shade" | "close";
 
 function inferWindowId(title: string): WindowId {
   const normalized = title.toLowerCase();
@@ -65,6 +69,7 @@ export function WindowFrame({
   const sharedSprite = (name: string) => sharedSkin?.sprites.get(name) ?? null;
   const [active, setActive] = useState(resolvedWindowId === "main");
   const [shaded, setShaded] = useState(false);
+  const [pressedControl, setPressedControl] = useState<ControlKind | null>(null);
   const renderedHeight = shaded ? 14 : height;
   const drag = useDraggableWindow({
     id: resolvedWindowId,
@@ -157,6 +162,66 @@ export function WindowFrame({
     style["--playlist-selected-bg"] = colors.selectedBackground;
   }
 
+  const spriteFor = (kind: ControlKind, pressed: boolean): string | null => {
+    if (resolvedWindowId === "main") {
+      if (kind === "minimize") {
+        return sharedSprite(pressed ? "main.minimizePressed" : "main.minimize");
+      }
+      if (kind === "shade") {
+        if (shaded) {
+          return sharedSprite(pressed ? "main.unshadePressed" : "main.unshade");
+        }
+        return sharedSprite(pressed ? "main.shadePressed" : "main.shade");
+      }
+      return sharedSprite(pressed ? "main.closePressed" : "main.close");
+    }
+
+    if (resolvedWindowId === "equalizer") {
+      if (kind === "shade") {
+        return sharedSprite(
+          pressed ? "eq.shadeButtonPressed" : shaded ? "eq.shadeButtonPressed" : "eq.shade",
+        );
+      }
+      if (kind === "close") {
+        return sharedSprite(pressed ? "eq.closePressed" : "eq.close");
+      }
+      return null;
+    }
+
+    if (kind === "shade") {
+      return sharedSprite(pressed ? "playlist.shadePressed" : "playlist.shade");
+    }
+    if (kind === "close") {
+      return sharedSprite(pressed ? "playlist.closePressed" : "playlist.close");
+    }
+    return null;
+  };
+
+  const onControl = (kind: ControlKind) => {
+    if (kind === "shade") {
+      if (shadeable) setShaded((value) => !value);
+      return;
+    }
+
+    if (kind === "minimize" && resolvedWindowId === "main") {
+      void minimizeHostWindow();
+      return;
+    }
+
+    if (kind === "close") {
+      if (resolvedWindowId === "main") {
+        void hideHostWindowToTray();
+      } else {
+        window.dispatchEvent(
+          new CustomEvent<WindowId>(WINDOW_CLOSE_EVENT, { detail: resolvedWindowId }),
+        );
+      }
+    }
+  };
+
+  const controls: ControlKind[] =
+    resolvedWindowId === "main" ? ["minimize", "shade", "close"] : ["shade", "close"];
+
   return (
     <section
       className={`amp-window ${hasSkinBackground ? "legacy-skinned-window" : ""} ${shaded ? "amp-window-shaded" : ""} ${active ? "amp-window-active" : "amp-window-inactive"} ${className}`}
@@ -188,6 +253,50 @@ export function WindowFrame({
         <span className="amp-title">{title}</span>
         <span className="amp-titlebar-grip" aria-hidden="true" />
         {titleActions}
+        <span className="classic-title-controls" data-window={resolvedWindowId}>
+          {controls.map((kind) => {
+            const image = spriteFor(kind, pressedControl === kind);
+            const glyph = kind === "minimize" ? "_" : kind === "shade" ? (shaded ? "□" : "▱") : "×";
+            const label =
+              kind === "minimize"
+                ? "Minimize AMP99"
+                : kind === "shade"
+                  ? shaded
+                    ? `Unshade ${title}`
+                    : `Shade ${title}`
+                  : resolvedWindowId === "main"
+                    ? "Hide AMP99 to tray"
+                    : `Close ${title}`;
+
+            return (
+              <button
+                key={kind}
+                type="button"
+                className={`classic-title-control classic-title-${kind}`}
+                aria-label={label}
+                title={label}
+                style={{ backgroundImage: image ? `url(${image})` : undefined }}
+                onPointerDown={(event) => {
+                  event.stopPropagation();
+                  setPressedControl(kind);
+                }}
+                onPointerUp={(event) => {
+                  event.stopPropagation();
+                  setPressedControl(null);
+                }}
+                onPointerLeave={() => setPressedControl(null)}
+                onPointerCancel={() => setPressedControl(null)}
+                onDoubleClick={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onControl(kind);
+                }}
+              >
+                {image ? "" : glyph}
+              </button>
+            );
+          })}
+        </span>
       </header>
       {!shaded && children}
     </section>
