@@ -12,7 +12,7 @@ The product goal is **not** to build a modern Spotify client with a retro theme.
 
 | Area | Status | Notes |
 |---|---|---|
-| Tauri 2 desktop shell | Implemented foundation | Windows runtime exists; installer packaging is being validated separately |
+| Tauri 2 desktop shell | Implemented / Windows smoke-tested | Raw release EXE and MSI-installed EXE both pass CI startup smoke tests |
 | React + TypeScript + Vite UI | Implemented | Main Player, Equalizer and Playlist Editor |
 | Classic draggable windows | Implemented foundation | Persisted positions and basic snapping/docking behavior |
 | `.wsz` archive loading | Implemented | Legacy ZIP/WSZ parsing, validation and normalized asset lookup |
@@ -21,10 +21,10 @@ The product goal is **not** to build a modern Spotify client with a retro theme.
 | Spotify Authorization Code + PKCE | Implemented for browser/dev callback | No Spotify Client Secret belongs in AMP99 |
 | Spotify library browsing | Implemented | User playlists, Liked Songs and playlist tracks |
 | Spotify playlist creation/editing | Implemented | Create, search, add, remove and index-based move/reorder flows |
-| Spotify Web Playback SDK integration | Implemented in frontend | Real Windows WebView2/EME playback still requires installed-app smoke testing |
+| Spotify Web Playback SDK integration | Implemented in frontend | Packaged Windows startup is proven; real WebView2/EME Spotify playback is not yet proven |
 | Native Tauri OAuth loopback callback | Not on `main` yet | Required before installed-app Spotify login is considered complete |
-| Windows MSI/NSIS CI artifacts | In validation | Packaging work is intentionally kept out of `main` until an installer artifact succeeds |
-| Microsoft Store release packaging/signing | Not started | Do not treat development installers as Store-ready packages |
+| Windows MSI/NSIS CI artifacts | Implemented / smoke-tested | CI builds both formats and validates raw EXE plus MSI install/launch/uninstall |
+| Microsoft Store release packaging/signing | Not started | Development installers are not Store-ready packages |
 
 ## Current feature set on `main`
 
@@ -80,7 +80,7 @@ AMP99 remains the owner of its classic queue behavior while Spotify provides the
 - repeat
 - Spotify playback state reflected back into the classic UI
 
-**Important:** frontend compilation is not proof that Spotify playback works inside a packaged Tauri/WebView2 application. WebView2/EME/DRM behavior must be smoke-tested on a real Windows build before Windows playback is declared complete.
+**Important:** Windows packaging and application startup are now proven in CI, but that still does **not** prove Spotify playback works inside packaged Tauri/WebView2. Native installed-app OAuth and a real Spotify Premium WebView2/EME/DRM playback smoke test remain required before Windows Spotify playback is declared complete.
 
 ### Legacy `.wsz` skins
 
@@ -100,6 +100,23 @@ Current skin infrastructure includes:
 - imported skin rendering for the Main Player
 
 AMP99 does **not** bundle third-party legacy skins. Users supply their own compatible `.wsz` files.
+
+### Windows packaging and smoke validation
+
+AMP99 now has a Windows GitHub Actions pipeline that builds both development installer formats:
+
+- MSI (`AMP99_0.1.0_x64_en-US.msi`)
+- NSIS setup EXE (`AMP99_0.1.0_x64-setup.exe`)
+
+The pipeline also performs automated Windows startup/install validation. The successful validation that promoted this pipeline to `main` proved:
+
+1. the raw Tauri release `amp99.exe` launched and stayed alive for the startup observation window;
+2. the generated MSI installed silently into an isolated test directory;
+3. the MSI-installed `amp99.exe` launched and stayed alive for the startup observation window;
+4. the MSI uninstalled successfully;
+5. both MSI and NSIS artifacts were produced and uploaded by CI.
+
+This is a **desktop packaging/startup smoke test**, not an end-to-end Spotify test. It does not yet prove native OAuth, Spotify Premium playback, audio output, or EME/DRM behavior inside WebView2.
 
 ## Development configuration
 
@@ -151,19 +168,18 @@ npm install
 npm run tauri:dev
 ```
 
-Tauri development/build behavior may evolve while the Windows packaging branch is being validated. Do not assume an MSI/NSIS artifact is production-ready until its PR and CI explicitly confirm it.
+The repository CI now also builds MSI and NSIS development installers and performs a raw-EXE plus MSI install/launch/uninstall smoke test. These development bundles are useful for runtime testing but are **not** Microsoft Store release packages.
 
 ## What we are working on next
 
-Order matters. The current priority is to prove the desktop runtime before adding more polish.
+Order matters. Windows packaging/startup has been proven; the next priority is proving the real Spotify path inside the installed desktop application.
 
-1. Produce a successful Windows Tauri installer artifact from CI.
-2. Finish the native Tauri loopback OAuth callback and connect it to the existing PKCE frontend session flow.
-3. Install AMP99 on Windows and smoke-test Spotify login plus Web Playback/EME in WebView2.
-4. Fix any runtime-specific playback/auth issues found by that test.
-5. Continue full classic `.wsz` fidelity for the Equalizer and Playlist Editor.
-6. Add Windows media-key / tray integration and packaging polish.
-7. Design the final Microsoft Store packaging/signing/release flow.
+1. Finish the native Tauri loopback OAuth callback and connect it to the existing PKCE frontend session flow.
+2. Install AMP99 on Windows with a Spotify Premium development user and smoke-test login plus Web Playback/EME in WebView2.
+3. Fix any runtime-specific playback/auth issues found by that test.
+4. Continue full classic `.wsz` fidelity for the Equalizer and Playlist Editor.
+5. Add Windows media-key / tray integration and packaging polish.
+6. Design the final Microsoft Store packaging/signing/release flow.
 
 ## Repository architecture
 
