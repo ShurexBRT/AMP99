@@ -10,11 +10,14 @@ export {
 } from "./auth";
 
 export {
+  addSpotifyPlaylistItems,
   createCurrentUserPlaylist,
   getCurrentSpotifyUser,
   getCurrentUserPlaylists,
   getPlaylistTracks,
   getSavedTracks,
+  removeSpotifyPlaylistItems,
+  searchSpotifyTracks,
   type CreateSpotifyPlaylistInput,
 } from "./api";
 
