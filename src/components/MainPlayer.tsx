@@ -16,6 +16,7 @@ type Props = {
   skinSprites: ReadonlyMap<string, string> | null;
   onMove: (position: WindowPosition) => void;
   onTogglePlay: () => void;
+  onStop: () => void;
   onPrevious: () => void;
   onNext: () => void;
   onVolume: (value: number) => void;
@@ -74,8 +75,7 @@ function LegacySpriteButton({
 }: LegacyButtonProps) {
   const [isPressed, setIsPressed] = useState(false);
   const idleSprite = selected && selectedSprite ? selectedSprite : normal;
-  const pressedSprite =
-    selected && selectedPressedSprite ? selectedPressedSprite : pressed;
+  const pressedSprite = selected && selectedPressedSprite ? selectedPressedSprite : pressed;
   const activeSprite = isPressed && pressedSprite ? pressedSprite : idleSprite;
 
   return (
@@ -131,32 +131,20 @@ function LegacyMainPlayer(props: Props & { sprites: ReadonlyMap<string, string> 
   const balanceOffset = balanceFrame * 15;
 
   const positionStyle = {
-    backgroundImage: sprite("main.positionBackground")
-      ? `url(${sprite("main.positionBackground")})`
-      : undefined,
-    "--skin-thumb-image": sprite("main.positionThumb")
-      ? `url(${sprite("main.positionThumb")})`
-      : undefined,
+    backgroundImage: sprite("main.positionBackground") ? `url(${sprite("main.positionBackground")})` : undefined,
+    "--skin-thumb-image": sprite("main.positionThumb") ? `url(${sprite("main.positionThumb")})` : undefined,
   } as SkinSliderStyle;
 
   const volumeStyle = {
-    backgroundImage: sprite("main.volumeBackgroundStrip")
-      ? `url(${sprite("main.volumeBackgroundStrip")})`
-      : undefined,
+    backgroundImage: sprite("main.volumeBackgroundStrip") ? `url(${sprite("main.volumeBackgroundStrip")})` : undefined,
     backgroundPosition: `0 -${volumeOffset}px`,
-    "--skin-thumb-image": sprite("main.volumeThumb")
-      ? `url(${sprite("main.volumeThumb")})`
-      : undefined,
+    "--skin-thumb-image": sprite("main.volumeThumb") ? `url(${sprite("main.volumeThumb")})` : undefined,
   } as SkinSliderStyle;
 
   const balanceStyle = {
-    backgroundImage: sprite("main.balanceBackgroundStrip")
-      ? `url(${sprite("main.balanceBackgroundStrip")})`
-      : undefined,
+    backgroundImage: sprite("main.balanceBackgroundStrip") ? `url(${sprite("main.balanceBackgroundStrip")})` : undefined,
     backgroundPosition: `0 -${balanceOffset}px`,
-    "--skin-thumb-image": sprite("main.balanceThumb")
-      ? `url(${sprite("main.balanceThumb")})`
-      : undefined,
+    "--skin-thumb-image": sprite("main.balanceThumb") ? `url(${sprite("main.balanceThumb")})` : undefined,
   } as SkinSliderStyle;
 
   return (
@@ -174,13 +162,7 @@ function LegacyMainPlayer(props: Props & { sprites: ReadonlyMap<string, string> 
         <LegacyTime elapsed={elapsed} sprites={sprites} />
 
         {playbackIndicator && (
-          <img
-            className="legacy-playback-indicator"
-            src={playbackIndicator}
-            alt=""
-            aria-hidden="true"
-            draggable={false}
-          />
+          <img className="legacy-playback-indicator" src={playbackIndicator} alt="" aria-hidden="true" draggable={false} />
         )}
 
         <div className="legacy-marquee" title={`${props.track.artist} - ${props.track.title}`}>
@@ -199,91 +181,26 @@ function LegacyMainPlayer(props: Props & { sprites: ReadonlyMap<string, string> 
         </div>
 
         <div className="legacy-volume-surface" style={volumeStyle}>
-          <input
-            className="legacy-skin-range legacy-volume-range"
-            type="range"
-            min="0"
-            max="100"
-            value={props.volume}
-            aria-label="Volume"
-            onChange={(event) => props.onVolume(Number(event.target.value))}
-          />
+          <input className="legacy-skin-range legacy-volume-range" type="range" min="0" max="100" value={props.volume} aria-label="Volume" onChange={(event) => props.onVolume(Number(event.target.value))} />
         </div>
 
         <div className="legacy-balance-surface" style={balanceStyle}>
-          <input
-            className="legacy-skin-range legacy-balance-range"
-            type="range"
-            min="-100"
-            max="100"
-            value={props.balance}
-            aria-label="Balance"
-            onChange={(event) => props.onBalance(Number(event.target.value))}
-          />
+          <input className="legacy-skin-range legacy-balance-range" type="range" min="-100" max="100" value={props.balance} aria-label="Balance" onChange={(event) => props.onBalance(Number(event.target.value))} />
         </div>
 
-        <input
-          className="legacy-skin-range legacy-position-range"
-          style={positionStyle}
-          type="range"
-          min="0"
-          max="100"
-          value={props.progress}
-          aria-label="Seek"
-          onChange={(event) => props.onProgress(Number(event.target.value))}
-        />
+        <input className="legacy-skin-range legacy-position-range" style={positionStyle} type="range" min="0" max="100" value={props.progress} aria-label="Seek" onChange={(event) => props.onProgress(Number(event.target.value))} />
 
         <LegacySpriteButton label="Previous" className="legacy-previous" normal={sprite("main.previous")} pressed={sprite("main.previousPressed")} fallback="◀◀" onClick={props.onPrevious} />
         <LegacySpriteButton label="Play" className="legacy-play" normal={sprite("main.play")} pressed={sprite("main.playPressed")} fallback="▶" onClick={() => !props.isPlaying && props.onTogglePlay()} />
         <LegacySpriteButton label="Pause" className="legacy-pause" normal={sprite("main.pause")} pressed={sprite("main.pausePressed")} fallback="Ⅱ" onClick={() => props.isPlaying && props.onTogglePlay()} />
-        <LegacySpriteButton label="Stop" className="legacy-stop" normal={sprite("main.stop")} pressed={sprite("main.stopPressed")} fallback="■" onClick={() => props.isPlaying && props.onTogglePlay()} />
+        <LegacySpriteButton label="Stop" className="legacy-stop" normal={sprite("main.stop")} pressed={sprite("main.stopPressed")} fallback="■" onClick={props.onStop} />
         <LegacySpriteButton label="Next" className="legacy-next" normal={sprite("main.next")} pressed={sprite("main.nextPressed")} fallback="▶▶" onClick={props.onNext} />
         <LegacySpriteButton label="Open source menu" className="legacy-eject" normal={sprite("main.eject")} pressed={sprite("main.ejectPressed")} fallback="▲" />
 
-        <LegacySpriteButton
-          label="Shuffle"
-          className="legacy-shuffle"
-          normal={sprite("main.shuffle")}
-          pressed={sprite("main.shufflePressed")}
-          selected={props.shuffle}
-          selectedSprite={sprite("main.shuffleSelected")}
-          selectedPressedSprite={sprite("main.shuffleSelectedPressed")}
-          fallback="SHUF"
-          onClick={props.onShuffle}
-        />
-        <LegacySpriteButton
-          label="Repeat"
-          className="legacy-repeat"
-          normal={sprite("main.repeat")}
-          pressed={sprite("main.repeatPressed")}
-          selected={props.repeat}
-          selectedSprite={sprite("main.repeatSelected")}
-          selectedPressedSprite={sprite("main.repeatSelectedPressed")}
-          fallback="REP"
-          onClick={props.onRepeat}
-        />
-        <LegacySpriteButton
-          label="Equalizer"
-          className="legacy-eq"
-          normal={sprite("main.eq")}
-          pressed={sprite("main.eqPressed")}
-          selected={props.equalizerVisible}
-          selectedSprite={sprite("main.eqSelected")}
-          selectedPressedSprite={sprite("main.eqSelectedPressed")}
-          fallback="EQ"
-          onClick={props.onToggleEqualizer}
-        />
-        <LegacySpriteButton
-          label="Playlist"
-          className="legacy-playlist"
-          normal={sprite("main.playlist")}
-          pressed={sprite("main.playlistPressed")}
-          selected={props.playlistVisible}
-          selectedSprite={sprite("main.playlistSelected")}
-          selectedPressedSprite={sprite("main.playlistSelectedPressed")}
-          fallback="PL"
-          onClick={props.onTogglePlaylist}
-        />
+        <LegacySpriteButton label="Shuffle" className="legacy-shuffle" normal={sprite("main.shuffle")} pressed={sprite("main.shufflePressed")} selected={props.shuffle} selectedSprite={sprite("main.shuffleSelected")} selectedPressedSprite={sprite("main.shuffleSelectedPressed")} fallback="SHUF" onClick={props.onShuffle} />
+        <LegacySpriteButton label="Repeat" className="legacy-repeat" normal={sprite("main.repeat")} pressed={sprite("main.repeatPressed")} selected={props.repeat} selectedSprite={sprite("main.repeatSelected")} selectedPressedSprite={sprite("main.repeatSelectedPressed")} fallback="REP" onClick={props.onRepeat} />
+        <LegacySpriteButton label="Equalizer" className="legacy-eq" normal={sprite("main.eq")} pressed={sprite("main.eqPressed")} selected={props.equalizerVisible} selectedSprite={sprite("main.eqSelected")} selectedPressedSprite={sprite("main.eqSelectedPressed")} fallback="EQ" onClick={props.onToggleEqualizer} />
+        <LegacySpriteButton label="Playlist" className="legacy-playlist" normal={sprite("main.playlist")} pressed={sprite("main.playlistPressed")} selected={props.playlistVisible} selectedSprite={sprite("main.playlistSelected")} selectedPressedSprite={sprite("main.playlistSelectedPressed")} fallback="PL" onClick={props.onTogglePlaylist} />
       </div>
     </WindowFrame>
   );
@@ -310,7 +227,7 @@ function DefaultMainPlayer(props: Props) {
           <button title="Previous" onClick={props.onPrevious}>◀◀</button>
           <button title="Play" onClick={() => !props.isPlaying && props.onTogglePlay()}>▶</button>
           <button title="Pause" onClick={() => props.isPlaying && props.onTogglePlay()}>Ⅱ</button>
-          <button title="Stop" onClick={() => props.isPlaying && props.onTogglePlay()}>■</button>
+          <button title="Stop" onClick={props.onStop}>■</button>
           <button title="Next" onClick={props.onNext}>▶▶</button>
           <button className="eject-button" title="Open source menu">▲</button>
         </div>
