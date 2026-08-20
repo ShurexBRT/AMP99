@@ -8,7 +8,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$PublisherDisplayName,
 
-    [string]$Version = "0.2.0.1",
+    [string]$Version = "0.2.0.2",
 
     [ValidateSet("x64")]
     [string]$Architecture = "x64",
@@ -19,7 +19,7 @@ param(
 
     [string]$IconDir = "src-tauri/icons",
 
-    [string]$OutputPath = "src-tauri/target/release/bundle/msix/AMP99_0.2.0-alpha.1_x64.msix"
+    [string]$OutputPath = "src-tauri/target/release/bundle/msix/AMP99_0.2.0-alpha.2_x64.msix"
 )
 
 $ErrorActionPreference = "Stop"
