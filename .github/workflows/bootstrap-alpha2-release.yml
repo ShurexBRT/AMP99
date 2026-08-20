@@ -1,3 +1,4 @@
+# One-time bootstrap publisher for AMP99 0.2.0-alpha.2.
 name: Bootstrap AMP99 alpha.2 release
 
 on:
