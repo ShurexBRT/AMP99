@@ -8,6 +8,7 @@ import {
 import type { Amp99NativeWindowRole } from "./bridge";
 
 const POSITION_STORAGE_KEY = "amp99.nativeWindowPositions.v1";
+const AUX_VISIBILITY_STORAGE_KEY = "amp99.nativeAuxVisibility.v1";
 const SNAP_THRESHOLD_PX = 14;
 
 const BASE_SIZE: Record<Amp99NativeWindowRole, { width: number; height: number }> = {
@@ -19,6 +20,11 @@ const BASE_SIZE: Record<Amp99NativeWindowRole, { width: number; height: number }
 type SavedPositions = Partial<
   Record<Amp99NativeWindowRole, { x: number; y: number }>
 >;
+
+type AuxVisibility = {
+  equalizer: boolean;
+  playlist: boolean;
+};
 
 export function currentNativeWindowRole(): Amp99NativeWindowRole | "browser" {
   if (!isTauri()) return "browser";
@@ -47,6 +53,44 @@ function savePosition(role: Amp99NativeWindowRole, position: PhysicalPosition): 
     localStorage.setItem(POSITION_STORAGE_KEY, JSON.stringify(current));
   } catch {
     // Position persistence is a convenience; never block window movement for it.
+  }
+}
+
+function readAuxVisibility(): AuxVisibility {
+  try {
+    const parsed = JSON.parse(
+      localStorage.getItem(AUX_VISIBILITY_STORAGE_KEY) || "{}",
+    ) as Partial<AuxVisibility>;
+    return {
+      equalizer: parsed.equalizer ?? true,
+      playlist: parsed.playlist ?? true,
+    };
+  } catch {
+    return { equalizer: true, playlist: true };
+  }
+}
+
+function saveAuxVisibility(
+  role: Exclude<Amp99NativeWindowRole, "main">,
+  visible: boolean,
+): void {
+  try {
+    const current = readAuxVisibility();
+    current[role] = visible;
+    localStorage.setItem(AUX_VISIBILITY_STORAGE_KEY, JSON.stringify(current));
+  } catch {
+    // Visibility persistence must never block window controls.
+  }
+}
+
+async function restoreAuxVisibility(): Promise<void> {
+  if (!isTauri()) return;
+  const saved = readAuxVisibility();
+  for (const role of ["equalizer", "playlist"] as const) {
+    const target = await WebviewWindow.getByLabel(role);
+    if (!target) continue;
+    if (saved[role]) await target.show();
+    else await target.hide();
   }
 }
 
@@ -95,6 +139,7 @@ export async function setNativeWindowVisible(
   role: Exclude<Amp99NativeWindowRole, "main">,
   visible: boolean,
 ): Promise<void> {
+  saveAuxVisibility(role, visible);
   if (!isTauri()) return;
   const target = await WebviewWindow.getByLabel(role);
   if (!target) return;
@@ -183,6 +228,14 @@ export async function installNativeWindowHost(
     await current.setPosition(new PhysicalPosition(saved.x, saved.y));
   }
 
+  const onMainFocus = () => {
+    if (role === "main") void restoreAuxVisibility();
+  };
+  if (role === "main") {
+    window.addEventListener("focus", onMainFocus);
+    await restoreAuxVisibility();
+  }
+
   let snapping = false;
   const unlistenMoved = await current.onMoved(({ payload }) => {
     if (snapping) return;
@@ -206,5 +259,6 @@ export async function installNativeWindowHost(
 
   return () => {
     unlistenMoved();
+    if (role === "main") window.removeEventListener("focus", onMainFocus);
   };
 }
