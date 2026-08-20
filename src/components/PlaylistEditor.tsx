@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { showPreferencesWindow } from "../preferences/nativePreferences";
 import type { SkinLoadSummary } from "../skins/useSkinManager";
 import type { SpotifyPlaylist, SpotifyTrack } from "../spotify/types";
 import type { Track, WindowPosition } from "../types/player";
@@ -337,6 +338,8 @@ export function PlaylistEditor({
                 {skinLoading ? "Loading Skin..." : "Load Skin..."}
               </button>
               <button onClick={resetSkin}>Use AMP99 Default</button>
+              <span className="popup-separator" aria-hidden="true" />
+              <button onClick={() => { setMenu(null); void showPreferencesWindow(); }}>Preferences...</button>
               <span className="popup-separator" aria-hidden="true" />
               <button onClick={clearQueue}>Clear Playlist</button>
             </div>

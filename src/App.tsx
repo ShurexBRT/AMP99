@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Equalizer } from "./components/Equalizer";
 import { MainPlayer } from "./components/MainPlayer";
 import { PlaylistEditor } from "./components/PlaylistEditor";
+import { PreferencesWindow } from "./preferences/PreferencesWindow";
+import { useApplyNativePreferences } from "./preferences/nativePreferences";
 import { useSkinManager } from "./skins/useSkinManager";
 import { spotifyTracksToPlayerQueue } from "./spotify/playerAdapter";
 import { reorderSpotifyPlaylistItem } from "./spotify/playlistReorder";
@@ -53,6 +55,7 @@ function MainController({ native }: { native: boolean }) {
   const amp = useAmp99State();
   const skin = useSkinManager();
   const spotify = useSpotifyLibrary();
+  useApplyNativePreferences();
   const [activeSpotifyPlaylist, setActiveSpotifyPlaylist] =
     useState<SpotifyPlaylist | null>(null);
   const [activeSpotifyPlaylistReorderSafe, setActiveSpotifyPlaylistReorderSafe] =
@@ -681,6 +684,7 @@ export default function App() {
   if (role === "main") return <MainController native />;
   if (role === "equalizer") return <NativeEqualizerWindow />;
   if (role === "playlist") return <NativePlaylistWindow />;
+  if (role === "preferences") return <PreferencesWindow />;
 
   return <MainController native={false} />;
 }

@@ -1,7 +1,18 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  getPreferencesSnapshot,
+  usePreferences,
+} from "../preferences/preferencesStore";
 import type { Track, WindowId, WindowPosition } from "../types/player";
 
 const STORAGE_KEY = "amp99.windowPositions.v1";
+const LAST_QUEUE_STORAGE_KEY = "amp99.lastQueue.v1";
 export const WINDOW_CLOSE_EVENT = "amp99-window-close";
 
 const defaultPositions: Record<WindowId, WindowPosition> = {
@@ -24,6 +35,49 @@ const emptyTrack: Track = {
   duration: 0,
 };
 
+type PersistedQueue = {
+  tracks: Track[];
+  currentIndex: number;
+};
+
+function isTrack(value: unknown): value is Track {
+  if (!value || typeof value !== "object") return false;
+  const track = value as Partial<Track>;
+  return (
+    typeof track.id === "string" &&
+    typeof track.artist === "string" &&
+    typeof track.title === "string" &&
+    typeof track.duration === "number" &&
+    Number.isFinite(track.duration) &&
+    track.duration >= 0 &&
+    (track.source === undefined || track.source === "demo" || track.source === "spotify") &&
+    (track.uri === undefined || typeof track.uri === "string") &&
+    (track.albumArtUrl === undefined ||
+      track.albumArtUrl === null ||
+      typeof track.albumArtUrl === "string")
+  );
+}
+
+function loadPersistedQueue(): PersistedQueue | null {
+  if (!getPreferencesSnapshot().resumeLastQueue) return null;
+
+  try {
+    const raw = localStorage.getItem(LAST_QUEUE_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<PersistedQueue>;
+    if (!Array.isArray(parsed.tracks) || !parsed.tracks.every(isTrack)) return null;
+
+    const currentIndex =
+      typeof parsed.currentIndex === "number" && Number.isInteger(parsed.currentIndex)
+        ? Math.max(0, Math.min(parsed.currentIndex, Math.max(0, parsed.tracks.length - 1)))
+        : 0;
+
+    return { tracks: parsed.tracks, currentIndex };
+  } catch {
+    return null;
+  }
+}
+
 function loadPositions(): Record<WindowId, WindowPosition> {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -34,12 +88,18 @@ function loadPositions(): Record<WindowId, WindowPosition> {
 }
 
 export function useAmp99State() {
+  const preferences = usePreferences();
+  const initialQueueRef = useRef<PersistedQueue | null>(loadPersistedQueue());
   const [positions, setPositions] = useState(loadPositions);
   const [playlistVisible, setPlaylistVisible] = useState(true);
   const [equalizerVisible, setEqualizerVisible] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [tracks, setTracks] = useState<Track[]>(demoTracks);
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [tracks, setTracks] = useState<Track[]>(
+    initialQueueRef.current?.tracks ?? demoTracks,
+  );
+  const [currentIndex, setCurrentIndex] = useState(
+    initialQueueRef.current?.currentIndex ?? 0,
+  );
   const [volume, setVolume] = useState(74);
   const [balance, setBalance] = useState(0);
   const [progress, setProgress] = useState(31);
@@ -59,6 +119,24 @@ export function useAmp99State() {
     window.addEventListener(WINDOW_CLOSE_EVENT, onClose);
     return () => window.removeEventListener(WINDOW_CLOSE_EVENT, onClose);
   }, []);
+
+  useEffect(() => {
+    if (!preferences.resumeLastQueue) {
+      try {
+        localStorage.removeItem(LAST_QUEUE_STORAGE_KEY);
+      } catch {
+        // Queue resume is optional and must never break playback.
+      }
+      return;
+    }
+
+    try {
+      const payload: PersistedQueue = { tracks, currentIndex };
+      localStorage.setItem(LAST_QUEUE_STORAGE_KEY, JSON.stringify(payload));
+    } catch {
+      // Queue resume is optional and must never break playback.
+    }
+  }, [preferences.resumeLastQueue, tracks, currentIndex]);
 
   const setWindowPosition = useCallback((id: WindowId, position: WindowPosition) => {
     setPositions((previous) => {
@@ -91,35 +169,56 @@ export function useAmp99State() {
     setProgress(0);
   }, [tracks.length]);
 
-  const api = useMemo(() => ({
-    positions,
-    playlistVisible,
-    equalizerVisible,
-    isPlaying,
-    currentIndex,
-    currentTrack,
-    tracks,
-    volume,
-    balance,
-    progress,
-    shuffle,
-    repeat,
-    doubleSize,
-    setWindowPosition,
-    setPlaylistVisible,
-    setEqualizerVisible,
-    setIsPlaying,
-    setCurrentIndex,
-    setVolume,
-    setBalance,
-    setProgress,
-    setShuffle,
-    setRepeat,
-    setDoubleSize,
-    replaceQueue,
-    previous,
-    next,
-  }), [positions, playlistVisible, equalizerVisible, isPlaying, currentIndex, currentTrack, tracks, volume, balance, progress, shuffle, repeat, doubleSize, setWindowPosition, replaceQueue, previous, next]);
+  const api = useMemo(
+    () => ({
+      positions,
+      playlistVisible,
+      equalizerVisible,
+      isPlaying,
+      currentIndex,
+      currentTrack,
+      tracks,
+      volume,
+      balance,
+      progress,
+      shuffle,
+      repeat,
+      doubleSize,
+      setWindowPosition,
+      setPlaylistVisible,
+      setEqualizerVisible,
+      setIsPlaying,
+      setCurrentIndex,
+      setVolume,
+      setBalance,
+      setProgress,
+      setShuffle,
+      setRepeat,
+      setDoubleSize,
+      replaceQueue,
+      previous,
+      next,
+    }),
+    [
+      positions,
+      playlistVisible,
+      equalizerVisible,
+      isPlaying,
+      currentIndex,
+      currentTrack,
+      tracks,
+      volume,
+      balance,
+      progress,
+      shuffle,
+      repeat,
+      doubleSize,
+      setWindowPosition,
+      replaceQueue,
+      previous,
+      next,
+    ],
+  );
 
   return api;
 }
