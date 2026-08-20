@@ -1,3 +1,5 @@
+mod update_links;
+
 use std::{
     io::{ErrorKind, Read, Write},
     net::{TcpListener, TcpStream},
@@ -17,6 +19,7 @@ use tauri::{
     Emitter, Manager, WebviewUrl, WebviewWindowBuilder,
 };
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+use update_links::open_official_amp99_release;
 
 const MAX_SKIN_BYTES: u64 = 16 * 1024 * 1024;
 const OPEN_SKIN_EVENT: &str = "amp99://open-skin";
@@ -397,6 +400,7 @@ pub fn run() {
             read_skin_file,
             start_spotify_oauth,
             set_group_always_on_top_preference,
+            open_official_amp99_release,
             show_preferences_window
         ])
         .setup(|app| {
