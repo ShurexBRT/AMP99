@@ -40,15 +40,22 @@ if (prerelease) {
     .filter((part) => /^\d+$/.test(part));
   if (numericIdentifiers.length === 0) {
     throw new Error(
-      `Prerelease version ${appVersion} needs a numeric build identifier (for example alpha.1) so it can map to an MSIX revision.`,
+      `Prerelease version ${appVersion} needs a numeric build identifier (for example alpha.1) so it can map to a Windows package revision.`,
     );
   }
   revision = numericIdentifiers.at(-1);
 }
 
-const msixVersion = `${major}.${minor}.${patch}.${revision}`;
-const expectedStoreVersionToken = `-Version "${msixVersion}"`;
-const expectedStoreDefault = `[string]$Version = "${msixVersion}"`;
+const windowsPackageVersion = `${major}.${minor}.${patch}.${revision}`;
+const expectedStoreVersionToken = `-Version "${windowsPackageVersion}"`;
+const expectedStoreDefault = `[string]$Version = "${windowsPackageVersion}"`;
+const wixVersion = tauriConfig.bundle?.windows?.wix?.version;
+
+if (wixVersion !== windowsPackageVersion) {
+  throw new Error(
+    `WiX installer version drift: expected ${windowsPackageVersion}, found ${wixVersion ?? "<missing>"}.`,
+  );
+}
 
 if (!storeWorkflow.includes(expectedStoreVersionToken)) {
   throw new Error(
@@ -62,4 +69,4 @@ if (!storeScript.includes(expectedStoreDefault)) {
   );
 }
 
-console.log(`AMP99 version OK: ${appVersion} (MSIX ${msixVersion})`);
+console.log(`AMP99 version OK: ${appVersion} (Windows package ${windowsPackageVersion})`);
