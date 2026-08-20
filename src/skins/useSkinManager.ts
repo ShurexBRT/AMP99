@@ -6,6 +6,11 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import {
+  broadcastSkinFile,
+  broadcastSkinReset,
+  subscribeSkinSync,
+} from "../windowing/bridge";
 import { importWinampSkin } from "./skinLoader";
 import {
   renderCoreSkinSprites,
@@ -54,38 +59,69 @@ export function useSkinManager() {
   );
   const [loading, setLoading] = useState(false);
 
-  const loadSkin = useCallback(async (file: File): Promise<SkinLoadSummary> => {
-    setLoading(true);
+  const applySkin = useCallback(
+    async (file: File, broadcast: boolean): Promise<SkinLoadSummary> => {
+      setLoading(true);
 
-    try {
-      const imported = await importWinampSkin(file);
-      const rendered = await renderCoreSkinSprites(imported);
+      try {
+        const imported = await importWinampSkin(file);
+        const rendered = await renderCoreSkinSprites(imported);
 
-      setActiveSkin(imported.name);
-      setRenderedSkin(rendered);
-      publishSharedSkin(rendered);
+        setActiveSkin(imported.name);
+        setRenderedSkin(rendered);
+        publishSharedSkin(rendered);
 
-      return {
-        name: imported.name,
-        assetCount: imported.supportedAssets.length,
-        renderedSpriteCount: rendered.sprites.size,
-        warnings: rendered.warnings,
-      };
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+        if (broadcast && isTauri()) {
+          broadcastSkinFile(file.name, await file.arrayBuffer());
+        }
+
+        return {
+          name: imported.name,
+          assetCount: imported.supportedAssets.length,
+          renderedSpriteCount: rendered.sprites.size,
+          warnings: rendered.warnings,
+        };
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
+
+  const loadSkin = useCallback(
+    (file: File) => applySkin(file, true),
+    [applySkin],
+  );
 
   const loadSkinPath = useCallback(
-    async (path: string) => {
+    async (path: string, broadcast = false) => {
       const bytes = await invoke<number[]>("read_skin_file", { path });
       const file = new File([new Uint8Array(bytes)], filenameFromPath(path), {
         type: "application/zip",
       });
-      return loadSkin(file);
+      return applySkin(file, broadcast);
     },
-    [loadSkin],
+    [applySkin],
   );
+
+  useEffect(() => {
+    const unsubscribe = subscribeSkinSync((event) => {
+      if (event.type === "reset") {
+        setActiveSkin(DEFAULT_SKIN_NAME);
+        setRenderedSkin(null);
+        publishSharedSkin(null);
+        return;
+      }
+
+      const file = new File([event.bytes], event.name, {
+        type: "application/zip",
+      });
+      void applySkin(file, false).catch((error) => {
+        console.error("AMP99 could not synchronize skin across windows:", error);
+      });
+    });
+    return unsubscribe;
+  }, [applySkin]);
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -96,7 +132,9 @@ export function useSkinManager() {
     void (async () => {
       unlisten = await listen<string>(OPEN_SKIN_EVENT, (event) => {
         if (!disposed && event.payload) {
-          void loadSkinPath(event.payload).catch((error) => {
+          // Secondary .wsz launches emit this event to every webview, so each window
+          // can decode locally without another BroadcastChannel fan-out.
+          void loadSkinPath(event.payload, false).catch((error) => {
             console.error("AMP99 could not open associated skin:", error);
           });
         }
@@ -109,7 +147,9 @@ export function useSkinManager() {
 
       const pending = await invoke<string | null>("take_pending_skin");
       if (!disposed && pending) {
-        await loadSkinPath(pending);
+        // On the very first process launch only one webview can consume PendingSkin.
+        // Re-broadcast that decoded file so Main/EQ/Playlist all start in the same skin.
+        await loadSkinPath(pending, true);
       }
     })().catch((error) => {
       console.error("AMP99 skin file-association setup failed:", error);
@@ -125,6 +165,7 @@ export function useSkinManager() {
     setActiveSkin(DEFAULT_SKIN_NAME);
     setRenderedSkin(null);
     publishSharedSkin(null);
+    if (isTauri()) broadcastSkinReset();
   }, []);
 
   return {

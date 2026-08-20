@@ -16,6 +16,7 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 const MAX_SKIN_BYTES: u64 = 16 * 1024 * 1024;
 const OPEN_SKIN_EVENT: &str = "amp99://open-skin";
 const MEDIA_KEY_EVENT: &str = "amp99://media-key";
+const PLAYER_WINDOWS: [&str; 3] = ["main", "equalizer", "playlist"];
 
 #[derive(Default)]
 struct PendingSkin(Mutex<Option<String>>);
@@ -42,6 +43,18 @@ fn focus_main(app: &tauri::AppHandle) {
         let _ = window.show();
         let _ = window.set_focus();
     }
+}
+
+fn set_group_always_on_top(app: &tauri::AppHandle, value: bool) -> bool {
+    let mut changed = false;
+    for label in PLAYER_WINDOWS {
+        if let Some(window) = app.get_webview_window(label) {
+            if window.set_always_on_top(value).is_ok() {
+                changed = true;
+            }
+        }
+    }
+    changed
 }
 
 fn queue_skin(app: &tauri::AppHandle, path: String) {
@@ -106,10 +119,8 @@ fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
             "always-on-top" => {
                 let state = app.state::<AlwaysOnTop>();
                 let next = !state.0.load(Ordering::Relaxed);
-                if let Some(window) = app.get_webview_window("main") {
-                    if window.set_always_on_top(next).is_ok() {
-                        state.0.store(next, Ordering::Relaxed);
-                    }
+                if set_group_always_on_top(app, next) {
+                    state.0.store(next, Ordering::Relaxed);
                 }
             }
             "quit" => app.exit(0),

@@ -2,425 +2,339 @@
 
 > **Play it like it's 1999.**
 >
-> This file is the operating agreement for every AI coding agent and human contributor working on AMP99. Read it completely before changing code.
+> This is the operating agreement for every AI agent and human contributor working on AMP99. Read it before changing code.
 
-## 1. Project truth
+## 1. Product truth
 
-AMP99 is a **free Windows desktop music player** that recreates the classic late-1990s Winamp-style workflow and interaction model while using Spotify as the planned music library/playback backend.
+AMP99 is a **free Windows desktop music player** built around the classic late-1990s three-window player workflow, user-supplied Winamp-compatible `.wsz` skins, and an official Spotify integration layer.
 
-The product goal is not "a modern Spotify app with a retro theme". The goal is:
+The goal is not a modern Spotify dashboard with a retro theme. The goal is:
 
-> **A classic late-90s desktop player that feels as if Spotify support had been added as a native plugin.**
+> **A classic late-90s desktop player that feels as if connected-music support had been added as a native plugin.**
 
-Current product tagline:
+Brand:
 
-> **Play it like it's 1999.**
-
-AMP99 is an independent project. Do not add Winamp, Nullsoft, or Spotify logos, proprietary branding, or bundled third-party legacy skins.
-
-Current AMP99 brand source:
-
-- product name: **AMP99**;
-- source app icon: `src-tauri/app-icon.svg`;
-- icon direction: original gunmetal hi-fi faceplate with phosphor-green `A99` LCD monogram and play indicator;
-- the icon remains AMP99-owned branding even when the player UI is changed by a user-supplied `.wsz` skin.
+- Product: **AMP99**
+- Tagline: **Play it like it's 1999.**
+- Source icon: `src-tauri/app-icon.svg`
+- Do not add Winamp, Nullsoft or Spotify proprietary logos/assets without explicit permission.
+- Do not bundle third-party legacy skins.
 
 ---
 
-## 2. Current technical baseline
+## 2. NON-NEGOTIABLE desktop architecture
 
-The repository currently targets:
+The packaged Tauri application uses **three real native OS windows**:
 
-- **Tauri 2** for the Windows desktop shell and future Microsoft Store packaging.
-- **React + TypeScript + Vite** for the application UI.
-- **JSZip** for `.wsz` / ZIP skin archive parsing.
-- Spotify integration will use official Spotify developer APIs and SDKs only.
-- Spotify authentication must use **Authorization Code with PKCE**. No client secret belongs in the desktop app or repository.
+```text
+AMP99 process
+├── main        275 × 116   Main Player
+├── equalizer   275 × 116   Equalizer
+└── playlist    275 × 232   Playlist Editor
+```
 
-Current UI foundation contains:
+These are **not panels inside a large shared React/Tauri canvas**.
 
-- Main Player window.
-- Equalizer window.
-- Playlist Editor window.
-- Draggable window state.
-- Basic snapping foundation.
-- Persisted window positions.
-- Demo playback state.
-- Visual EQ controls.
-- Initial `.wsz` archive detection / extraction logic.
+### Hard rules
 
-Do not rewrite this stack or replace major dependencies without explicit approval from the repository owner.
+- Never reintroduce a large 900×620-style host window containing fake Main/EQ/Playlist panels in the packaged desktop app.
+- Main, Equalizer and Playlist must remain independently movable native Tauri/Windows windows.
+- Native dragging, native sizing and native outer positions are authoritative for desktop window behavior.
+- Docking/snapping must operate between OS windows.
+- Shade mode changes the actual native window height.
+- 1× / 2× changes native window dimensions and pixel scaling.
+- Main EQ/PL controls show/hide the corresponding native windows.
+- EQ and Playlist can be hidden independently.
+- Main close hides the AMP99 window group to tray; explicit tray Quit exits the process.
+- Browser `npm run dev` may keep a single-page fallback for convenience, but that fallback is **not** product architecture and is not valid proof of Windows UX.
+
+### Multi-webview ownership
+
+The three Tauri windows are three webviews in one AMP99 process.
+
+- **Main** is the authoritative application controller.
+- Main owns player state, Spotify session state and Spotify playback initialization.
+- **Never initialize Spotify Web Playback SDK independently in EQ or Playlist.**
+- Equalizer and Playlist send typed commands to Main and consume Main snapshots through `src/windowing/`.
+- Shared `.wsz` skin selection must synchronize across all three windows.
+- Do not move Spotify API calls into auxiliary-window components to avoid using the bridge.
+
+Windows CI contains a Win32 top-level-window probe. A desktop-windowing change is not complete if CI cannot prove Main, Equalizer and Playlist are separate windows in one AMP99 process.
 
 ---
 
-## 3. Repository map
+## 3. Technical baseline
 
-The intended ownership boundaries are:
+Current stack:
+
+- Tauri 2
+- React + TypeScript + Vite
+- JSZip for `.wsz` / ZIP skin input
+- official Spotify developer APIs / SDKs only
+- Spotify Authorization Code with PKCE; no client secret in the desktop app
+
+Repository map:
 
 ```text
 src/
-├── components/       UI windows and reusable player controls
-├── hooks/            UI interaction hooks such as dragging/docking
-├── skins/            .wsz parsing, skin metadata and sprite rendering
-├── spotify/          Spotify auth, API, playback and mapping code
-├── state/            shared application/player/window state
-├── types/            shared TypeScript domain types
-├── App.tsx           composition only; keep business logic out
-└── styles.css        current foundation styling; expected to evolve
+├── components/       classic player UI surfaces and controls
+├── hooks/            browser/fallback interaction hooks
+├── platform/         Windows/WebView integration
+├── skins/            .wsz parsing, validation, sprite metadata/rendering
+├── spotify/          auth, API, playlist and playback code
+├── state/            Main-owned application/player state
+├── types/            shared domain types
+├── windowing/        native roles, state/command bridge, sizing, snapping, persistence
+└── App.tsx           role-based composition / orchestration
 
 src-tauri/
-├── app-icon.svg      scalable original AMP99 app-icon source
-├── src/              native Tauri/Rust integration
-├── capabilities/     Tauri permissions
-└── *.conf.json       desktop/store packaging configuration
+├── app-icon.svg
+├── src/              native Rust/Tauri integration
+├── capabilities/
+└── tauri.conf.json   declares Main/EQ/Playlist native windows
+
+store/                Microsoft Store package templates
+scripts/              packaging/release scripts
+docs/                 Store/release QA runbooks
 ```
 
-If you introduce a new domain, create a focused directory instead of turning `App.tsx` or one service file into a dumping ground.
+Do not replace the major stack or architecture without explicit repository-owner approval.
 
 ---
 
-# 4. NON-NEGOTIABLE collaboration rules
+## 4. Collaboration rules
 
-These rules exist to prevent two AI agents from destroying each other's work.
+### Rule 1 — never develop directly on `main`
 
-## Rule 1 — Never develop directly on `main`
-
-`main` is the integration branch.
-
-Every implementation task must use its own branch.
-
-Preferred format:
+Every implementation task gets its own branch:
 
 ```text
 agent/<agent-name>/<short-scope>
 ```
 
-Examples:
+Small docs-only changes may go directly to `main` only when the repository owner explicitly requests it.
 
-```text
-agent/codex/spotify-pkce
-agent/claude/skin-renderer
-agent/codex/window-docking
-```
+### Rule 2 — claim work first
 
-Small documentation-only fixes may go directly to `main` only when the repository owner explicitly asks for that.
+Before editing:
 
-## Rule 2 — Claim work before editing
+1. Read latest `README.md` and `AGENTS.md`.
+2. Check open issues and PRs.
+3. Make sure no other agent owns the same subsystem/files.
+4. Open or use a `[CLAIM]` issue.
+5. State expected files and explicit non-goals.
+6. Create the feature branch.
 
-Before changing code:
+### Rule 3 — no concurrent edits to the same owned files
 
-1. Pull/read the latest `main`.
-2. Check open issues and open PRs.
-3. Make sure another contributor is not already touching the same subsystem.
-4. Claim the task using a GitHub issue or an existing assigned issue.
-5. State which files/directories you expect to touch.
+If another active task owns a file/subsystem, do not "helpfully" refactor it. Stop and coordinate.
 
-Suggested claim title:
+### Rule 4 — no drive-by refactors
 
-```text
-[CLAIM] Spotify PKCE authentication
-```
+Do not rename, reorganize, dependency-upgrade or redesign unrelated code because it looks cleaner.
 
-Suggested claim body:
+### Rule 5 — preserve existing work
 
-```text
-Agent: <name>
-Scope: <short description>
-Expected files:
-- src/spotify/*
-- src/state/* only if required
-Will not touch:
-- src/skins/*
-- src-tauri/*
-```
+Never silently revert, overwrite, delete or reconstruct unfamiliar code. Understand it first.
 
-If another active task overlaps materially, do not start editing. Split the responsibility first.
-
-## Rule 3 — Do not edit the same file concurrently
-
-This is the most important practical rule.
-
-If Agent A owns `src/skins/*`, Agent B must not "clean up" or refactor those files while Agent A has an active branch/PR.
-
-If a task unexpectedly requires a file owned by another active task:
-
-- stop,
-- document the dependency in the issue/PR,
-- either move the change into the owning agent's branch or wait until that work lands.
-
-Never silently overwrite or recreate another agent's implementation.
-
-## Rule 4 — No drive-by refactors
-
-Do not refactor unrelated code because it "looks cleaner".
-
-A task touching Spotify authentication must not also redesign the playlist component, rename state APIs, replace CSS conventions, upgrade dependencies, or reorganize directories unless those changes are necessary for the task and clearly documented.
-
-Small diffs merge. Heroic rewrites collide.
-
-## Rule 5 — Preserve other contributors' work
-
-Never:
-
-- revert code simply because you did not write it,
-- delete an unfamiliar feature without understanding why it exists,
-- reset files to an older version,
-- force-push over another contributor's branch,
-- replace a whole file when a focused patch is enough,
-- remove TODOs belonging to another active task unless resolved.
-
-Before changing a file, inspect its current version from the latest target branch.
-
-## Rule 6 — One concern per PR
+### Rule 6 — one concern per PR
 
 Good:
 
 ```text
-Spotify PKCE authentication
-Classic window docking
+Native window docking
+Spotify PKCE
 .WSZ sprite renderer
-Playlist create/edit API
+Playlist API edits
 ```
 
 Bad:
 
 ```text
-Spotify + skins + CSS cleanup + dependency upgrades + new settings
+Spotify + skins + state rewrite + CSS cleanup + dependency upgrades
 ```
-
-If the PR title needs the word "and" three times, it is probably too large.
 
 ---
 
-# 5. Required workflow for every coding task
+## 5. Required task workflow
 
-## Before coding
+Before coding:
 
-Every agent must:
+- read repo truth;
+- inspect implementation;
+- inspect active work;
+- claim scope;
+- branch.
 
-1. Read `AGENTS.md`.
-2. Read `README.md`.
-3. Inspect the current implementation related to the task.
-4. Inspect open PRs/issues for overlap.
-5. Claim the scope.
-6. Create a feature branch.
+While coding:
 
-## While coding
+- stay inside scope;
+- keep platform-specific code behind `src/windowing/`, `src/platform/` or Tauri/Rust boundaries;
+- keep Spotify network concerns under `src/spotify/`;
+- keep skin decoding under `src/skins/`;
+- do not commit credentials or tokens;
+- avoid new dependencies if current platform APIs solve the problem cleanly.
 
-- Stay inside the claimed scope.
-- Prefer focused components/services over monolithic files.
-- Do not commit secrets.
-- Do not change package versions unless required.
-- Do not add a new dependency when a small native implementation is reasonable.
-- Keep Spotify API concerns out of visual components.
-- Keep skin decoding/rendering out of Spotify code.
-- Keep platform-specific native logic behind Tauri boundaries.
-
-## Before pushing
-
-Run the most relevant checks available:
+Before merge:
 
 ```bash
 npm install
 npm run build
 ```
 
-For native/Tauri changes also run, when the environment supports it:
+For Tauri/windowing/installer changes, Windows native CI is mandatory. A browser build alone is insufficient.
 
-```bash
-npm run tauri:build
-```
-
-If a check cannot be run, say exactly why in the PR. Never report a check as passing unless it actually ran.
-
-## Pull request
-
-Every feature branch should end in a PR to `main`.
-
-PR description must include:
+PR description must state:
 
 ```text
 ## What changed
-
 ## Why
-
-## Files / modules touched
-
+## Files/modules touched
 ## What I intentionally did not change
-
 ## Validation performed
-
-## Known limitations / follow-up
-
-## Coordination notes for the next agent
+## Known limitations/follow-up
+## Coordination notes
 ```
 
-Do not merge an overlapping PR until dependent work is rebased/updated and conflicts are understood.
+Never report a check as passing unless it actually ran.
 
 ---
 
-# 6. Ownership boundaries for parallel work
+## 6. High-conflict areas
 
-When two agents are working simultaneously, prefer splitting work by subsystem.
+Treat these as explicitly owned per task:
+
+```text
+src/App.tsx
+src/windowing/
+src/state/
+src/types/
+src/styles.css
+src/native-windows.css
+package.json
+src-tauri/src/lib.rs
+src-tauri/tauri.conf.json
+src-tauri/capabilities/
+```
 
 Safe parallel examples:
 
 | Agent A | Agent B |
 |---|---|
-| `src/spotify/*` | `src/skins/*` |
-| Tauri packaging | Playlist visual polish |
-| Window docking | Spotify API mapping |
-| Tests for Spotify services | `.wsz` compatibility fixtures |
+| `src/spotify/*` | `.wsz` sprite work |
+| Store docs | playlist visual polish |
+| Spotify API tests | skin fixtures |
 
 Risky parallel examples:
 
 | Agent A | Agent B |
 |---|---|
-| editing `useAmp99State.ts` | editing `useAmp99State.ts` |
-| redesigning `PlaylistEditor.tsx` | wiring Spotify into `PlaylistEditor.tsx` |
-| changing global CSS tokens | implementing pixel-perfect player CSS |
-| changing package versions | adding features relying on current versions |
-
-When unavoidable, nominate one branch as the owner and make the second task depend on it.
+| native window bridge | `App.tsx` orchestration |
+| native docking | `tauri.conf.json` window definitions |
+| playlist UI redesign | Spotify wiring in Playlist Editor |
+| state migration | another state migration |
 
 ---
 
-# 7. Product rules — classic player fidelity
+## 7. Classic player fidelity
 
-AMP99 should preserve the recognizable classic desktop-player interaction model.
+Product surfaces:
 
-Default product shape:
+1. Main Player
+2. Equalizer
+3. Playlist Editor
 
-1. **Main Player**
-2. **Equalizer**
-3. **Playlist Editor**
+Preserve:
 
-These are independent movable windows/panels that should dock/snap together and remember positions.
+- classic compact dimensions;
+- bitmap/pixel rendering;
+- active/inactive titlebars;
+- pressed controls;
+- shade behavior;
+- dense Playlist Editor;
+- OS-window docking/snapping;
+- 1× / 2× behavior.
 
-Do not introduce modern Spotify-style application chrome unless explicitly approved.
+Avoid unless explicitly approved:
 
-Avoid by default:
+- permanent modern sidebars;
+- large album-card dashboards;
+- rounded SaaS layouts;
+- Spotify-green branding;
+- mobile-first desktop navigation.
 
-- permanent left navigation sidebars,
-- large album cards,
-- modern dashboard layouts,
-- rounded SaaS cards,
-- Spotify-green visual branding,
-- mobile-first navigation patterns on the desktop experience.
-
-Spotify capabilities should appear through classic player interactions, menus and playlist workflows.
-
-Example:
-
-```text
-LIST OPTS
-├── Spotify Playlists
-├── Liked Songs
-├── Create Spotify Playlist...
-├── Load Winamp Skin...
-└── Clear Playlist
-```
-
-The application may be technically modern. It should not *feel* modern in ways that destroy the premise.
+Spotify functionality should appear through classic menus/workflows rather than replacing the classic UI model.
 
 ---
 
-# 8. Spotify integration rules
+## 8. Spotify rules
 
-Use only documented, official Spotify developer APIs / SDKs for production code.
-
-## Authentication
-
-Use Authorization Code with PKCE.
+Use only documented official Spotify APIs/SDKs in production code.
 
 Never commit:
 
-- access tokens,
-- refresh tokens,
-- Spotify Client Secrets,
-- user credentials,
-- private test-account data.
+- access tokens;
+- refresh tokens;
+- Client Secrets;
+- credentials;
+- private tester data.
 
-Only a public Spotify Client ID may be configured in the client environment.
+Only a public Client ID belongs in client configuration.
 
-Environment-specific values belong in ignored `.env` files. Keep `.env.example` secret-free.
+Current phase intentionally supports Spotify Development Mode and its limited tester pool. Never implement limit-bypass hacks.
 
-## Development-mode assumption
-
-For the current phase, AMP99 is intentionally designed around Spotify Development Mode and its limited tester pool. Do not build hacks to bypass Spotify user limits.
-
-## API isolation
-
-Spotify network calls belong under `src/spotify/`.
-
-UI components should consume normalized AMP99 domain models instead of raw Spotify JSON wherever practical.
-
-Preferred flow:
+Preferred data path:
 
 ```text
-Spotify API response
-        ↓
-src/spotify mapper/service
-        ↓
-AMP99 Track / Playlist model
-        ↓
-state
-        ↓
-classic UI components
+Spotify response
+  ↓
+src/spotify service/mapper
+  ↓
+AMP99 domain model
+  ↓
+Main state/controller
+  ↓
+window snapshot / classic UI
 ```
 
-Do not scatter `fetch("https://api.spotify.com/...`)` calls across React components.
+For native multi-window mode:
 
-## Playback
+```text
+Playlist/EQ webview
+  ↓ typed command
+Main webview
+  ↓
+src/spotify
+```
 
-Use official playback capabilities only.
+Do not let auxiliary webviews become independent Spotify clients.
 
-Do not use reverse-engineered Spotify playback clients for the Microsoft Store product.
-
-## Equalizer
-
-The classic EQ UI may exist as part of the player experience, but do not process or alter Spotify audio unless Spotify's current platform rules explicitly permit it.
+The visual EQ must not alter Spotify audio unless Spotify rules explicitly permit it.
 
 ---
 
-# 9. Playlist behavior
+## 9. Playlist behavior
 
-The Playlist Editor is a core AMP99 product surface, not an afterthought.
+Playlist Editor is a core product surface.
 
-Planned Spotify workflow:
+Expected workflow where the official Spotify API permits it:
 
 ```text
 LIST OPTS
 → Spotify Playlists
-→ choose playlist
-→ load tracks into classic Playlist Editor
+→ choose list
+→ load into classic Playlist Editor
 ```
 
-Planned capabilities where the official Spotify API permits them:
-
-- browse user's Spotify playlists,
-- browse Liked Songs,
-- create a playlist,
-- load playlist tracks,
-- add tracks,
-- remove tracks,
-- reorder tracks,
-- rename/update owned playlists,
-- search Spotify and add a result to an editable playlist.
-
-Spotify permissions and 403/ownership restrictions must be represented honestly in the UI. Do not make an unsupported action look available and fail mysteriously after click.
+Supported/target capabilities include browse, Liked Songs, create, search, add, remove and reorder. Ownership/403 restrictions must be represented honestly. Disable unsafe actions rather than failing mysteriously after click.
 
 ---
 
-# 10. `.wsz` skin compatibility
+## 10. `.wsz` compatibility and security
 
-Legacy skin support is a first-class feature.
+User-supplied `.wsz` is untrusted input.
 
-The goal is:
-
-> A user should be able to select a compatible legacy Winamp `.wsz` file and have AMP99 render from the assets contained in that archive.
-
-Current foundation recognizes assets such as:
+Compatibility assets include classic sheets such as:
 
 ```text
 main.bmp
@@ -432,6 +346,7 @@ balance.bmp
 numbers.bmp
 playpaus.bmp
 eqmain.bmp
+eq_ex.bmp
 pledit.bmp
 pledit.txt
 viscolor.txt
@@ -439,137 +354,101 @@ viscolor.txt
 
 Rules:
 
-- Do not bundle third-party legacy skins in the repository or installer.
-- Keep the default AMP99 skin original to AMP99.
-- Treat `.wsz` input as untrusted user content.
-- Validate archive paths and file types.
-- Prevent ZIP path traversal.
-- Set sensible archive/file-size limits before production release.
-- Revoke generated Blob URLs when no longer needed.
-- Gracefully fall back when optional skin assets are missing.
+- do not bundle third-party skins;
+- default skin remains original AMP99 branding;
+- validate paths/file types;
+- prevent ZIP traversal;
+- enforce archive/file-size limits;
+- gracefully handle missing optional assets;
+- revoke generated Blob URLs when no longer needed;
+- skin parsing/rendering belongs under `src/skins/`;
+- a selected skin must propagate to all native AMP99 windows.
 
-Skin parsing and sprite mapping belong in `src/skins/`, not inside player components.
+Test at least valid archive, invalid archive, missing assets, optional missing assets and case/path variations.
 
 ---
 
-# 11. State architecture
+## 11. State rules
 
-`src/state/useAmp99State.ts` is currently a lightweight foundation, **not permission to turn it into a 2,000-line global god object**.
+Do not turn `useAmp99State.ts` into a god object.
 
-As features grow, separate concerns:
+Keep conceptual separation between:
 
 ```text
-window/layout state
-playback state
-playlist state
-spotify session state
-skin state
+player/queue
+Spotify session
+playlist editing
+skin
+native window state
 preferences
 ```
 
-An agent planning a major state refactor must claim that work explicitly because it affects almost every subsystem.
+Native window position is an OS-window concern. Do not reintroduce virtual `left/top` as the authoritative packaged-desktop position model.
 
-Do not independently perform two competing state-management migrations.
-
-Adding Zustand, Redux or another state library requires explicit approval unless the current architecture has clearly become inadequate and the migration is its own reviewed task.
+A state-library migration (Zustand/Redux/etc.) requires explicit approval and its own task.
 
 ---
 
-# 12. Styling and pixel fidelity
+## 12. Security
 
-The current CSS is foundation styling, not the final skin implementation.
+Treat as untrusted:
 
-Long-term direction:
+- `.wsz` files;
+- Spotify responses;
+- playlist/track metadata;
+- URLs;
+- inter-window messages;
+- Tauri commands/arguments.
 
-- classic dimensions and proportions,
-- sharp bitmap-style rendering,
-- no accidental antialiasing of skin sprites,
-- correct title bars and shade states,
-- classic button states,
-- authentic playlist density,
-- correct docking behavior,
-- 1x and 2x display modes.
-
-Prefer reusable geometry/tokens/sprite metadata rather than hundreds of unexplained magic numbers.
-
-When working on pixel fidelity, document the reference behavior being matched.
+Expose only required Tauri permissions. Never globally disable security controls to make development easier.
 
 ---
 
-# 13. Security rules
+## 13. Dependency rules
 
-Treat all external input as untrusted:
-
-- `.wsz` files,
-- Spotify API responses,
-- playlist names,
-- track metadata,
-- URLs,
-- Tauri commands.
-
-Never expose unnecessary Tauri permissions.
-
-Do not disable security controls globally just to make development easier.
-
-Do not commit secrets, personal Spotify tokens or test-user credentials.
-
----
-
-# 14. Dependency rules
-
-Before adding a package, answer:
+Before adding a dependency, answer:
 
 1. Why is it needed?
-2. Can existing dependencies/platform APIs do the job?
-3. Is it actively maintained?
-4. Does it materially increase bundle/native complexity?
-5. Does it create licensing problems for a free Microsoft Store app?
+2. Can existing APIs solve it?
+3. Is it maintained?
+4. What native/bundle complexity does it add?
+5. Is its license appropriate for a free Store app?
 
-Do not upgrade unrelated dependencies inside a feature PR.
+Do not upgrade unrelated packages inside a feature PR.
 
 ---
 
-# 15. Definition of done
+## 14. Definition of done
 
 A feature is not done because code was generated.
 
-At minimum:
+Minimum:
 
-- TypeScript compiles.
-- Frontend build passes.
-- Core interaction works.
-- Existing behavior was not silently broken.
-- Error state is handled.
-- No secret is committed.
-- Scope matches the claimed task.
-- README / AGENTS / relevant docs are updated if architecture or setup changed.
+- TypeScript compiles;
+- relevant frontend CI passes;
+- native CI passes when desktop behavior changed;
+- real interaction is implemented, not decorative only;
+- failures are handled;
+- no secret committed;
+- scope matches claim;
+- README/AGENTS/docs updated for architecture/setup changes.
 
-For UI work, manually verify the relevant interaction and visual state.
+For native windowing work additionally verify:
 
-For Spotify work, test at least:
-
-- logged out,
-- successful login,
-- expired/invalid token path where practical,
-- API error,
-- empty data,
-- success data.
-
-For skin work, test at least:
-
-- valid `.wsz`,
-- invalid archive,
-- missing required asset,
-- optional missing assets,
-- unusual uppercase/lowercase filenames.
+- three top-level native windows still exist;
+- they share one AMP99 process;
+- Main/EQ/Playlist move independently;
+- EQ/PL show/hide works;
+- Main group tray behavior works;
+- native snapping and position persistence are not regressed;
+- 1×/2× and shade resize native windows;
+- MSI/NSIS smoke remains green.
 
 ---
 
-# 16. Handoff protocol
+## 15. Handoff protocol
 
-Every agent must leave the repository understandable for the next agent.
-
-At the end of a task/PR, include:
+Every completed PR should leave:
 
 ```text
 HANDOFF
@@ -593,106 +472,36 @@ Recommended next task:
 - ...
 ```
 
-Do not rely on chat history as project documentation. Important implementation decisions belong in GitHub issues, PRs, code comments where appropriate, or repository docs.
+Important decisions belong in the repository, not only in chat history.
 
 ---
 
-# 17. Conflict-resolution rule
+## 16. Conflict priority
 
-When instructions disagree, use this priority:
+When instructions disagree:
 
-1. Explicit instruction from the repository owner for the current task.
-2. Current `AGENTS.md`.
-3. Accepted architecture/design decisions already merged to `main`.
-4. Current task's GitHub issue/PR scope.
-5. Agent preference.
+1. repository owner's explicit current instruction;
+2. current `AGENTS.md`;
+3. merged architecture decisions;
+4. current claim/PR scope;
+5. agent preference.
 
 Agent preference loses every time.
 
-If a requirement is genuinely ambiguous and changing it would create substantial rework, record the ambiguity instead of guessing and rewriting architecture.
+---
+
+## 17. Current V1 posture
+
+The non-Spotify platform feature set is close to frozen. Prefer QA, fidelity fixes and bug fixes over feature creep.
+
+The remaining major release gates are Spotify packaged-runtime validation, manual Windows QA, final Partner Center identity/screenshots and Store certification.
+
+Do not rebuild completed subsystems just because another approach is aesthetically preferable.
 
 ---
 
-# 18. Current recommended parallelization
-
-Until the architecture changes, the cleanest two-agent split is:
-
-### Track A — Spotify / platform
-
-Primary directories:
-
-```text
-src/spotify/
-src-tauri/
-```
-
-Typical tasks:
-
-- PKCE authentication,
-- token lifecycle,
-- Spotify API client,
-- playlist mapping,
-- Web Playback SDK,
-- Windows media integration,
-- packaging.
-
-### Track B — Classic UI / skins
-
-Primary directories:
-
-```text
-src/components/
-src/skins/
-```
-
-Typical tasks:
-
-- `.wsz` rendering,
-- sprite map,
-- main/equalizer/playlist fidelity,
-- docking,
-- shade mode,
-- classic menus,
-- 1x/2x rendering.
-
-### Shared / high-conflict areas
-
-Treat these as explicitly owned per task:
-
-```text
-src/App.tsx
-src/state/
-src/types/
-src/styles.css
-package.json
-src-tauri/tauri.conf.json
-```
-
-Two agents should not make architectural changes in these areas at the same time.
-
----
-
-# 19. Current priority backlog
-
-Unless the repository owner changes priorities, the rough sequence is:
-
-1. Stabilize the three-window desktop shell.
-2. Implement correct window docking/snapping and persistence.
-3. Implement real classic `.wsz` sprite rendering.
-4. Implement Spotify PKCE login/session handling.
-5. Implement Spotify API client and normalized models.
-6. Load Spotify playlists / Liked Songs into Playlist Editor.
-7. Implement official Spotify playback.
-8. Implement create/add/remove/reorder playlist operations.
-9. Improve classic window/menu fidelity and shade mode.
-10. Add Windows media keys/system integration.
-11. Harden skin-file handling and security.
-12. Package and validate Microsoft Store build.
-
----
-
-# 20. Final rule
+## 18. Final rule
 
 **Do not optimize for how much code an agent can produce. Optimize for how safely the next contributor can continue.**
 
-AMP99 should grow as one coherent product, not as two AI agents taking turns rebuilding each other's work.
+AMP99 should grow as one coherent product, not as agents taking turns rebuilding each other's work.
