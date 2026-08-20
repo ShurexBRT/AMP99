@@ -10,9 +10,10 @@ The product is **not** a modern music dashboard wearing a retro theme. The packa
 
 ## Current release track
 
-- App version: **0.2.0-alpha.1**
+- App version: **0.2.0-alpha.2**
 - Phase: **closed alpha / physical QA**
-- MSIX numeric package version: **0.2.0.1**
+- MSIX numeric package version: **0.2.0.2**
+- Installer release: [`v0.2.0-alpha.2`](https://github.com/ShurexBRT/AMP99/releases/tag/v0.2.0-alpha.2)
 - Version consistency is checked by `npm run version:check` and is part of the normal production build.
 
 Planned progression:
@@ -100,6 +101,8 @@ Windows CI explicitly enumerates Win32 top-level windows for the AMP99 process a
 | Realtime volume | **Implemented / physically tested** | Applies during drag, not on release |
 | Queue auto-next | **Implemented / physically tested** | AMP99 advances at track end |
 | MSI / NSIS | **Implemented / smoke-tested** | Build, install, launch, handoff, uninstall |
+| Preferences | **Implemented** | Separate native utility window with persisted player/window settings |
+| Alpha update/release channel | **Implemented** | Safe manual update check opens only the official AMP99 GitHub release page |
 | Store MSIX preflight | **Implemented** | MakeAppx pack/unpack structural verification |
 | Privacy / release docs | **Implemented** | `PRIVACY.md`, `docs/` |
 | Spotify library/playlists | **Implemented / physically tested** | Browse, Liked Songs, search, create/edit |
@@ -306,14 +309,13 @@ See [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md).
 Do not add feature creep to V1. The remaining gates are primarily:
 
 1. continue owner QA on real Windows hardware across DPI/scaling states and a large set of legacy skins;
-2. add a compact Preferences dialog and GitHub/MSI update-check flow;
-3. run a small closed external tester round after those changes are packaged;
-4. resolve Spotify public-distribution requirements;
-5. complete legal/branding/attribution review before Store submission;
-6. run `docs/RELEASE_QA.md` across the tester pool;
-7. reserve AMP99 in Partner Center and insert final Store identity values;
-8. capture release screenshots;
-9. pass Store certification.
+2. run a small closed external tester round with the packaged alpha build;
+3. resolve Spotify public-distribution requirements;
+4. complete legal/branding/attribution review before Store submission;
+5. run `docs/RELEASE_QA.md` across the tester pool;
+6. reserve AMP99 in Partner Center and insert final Store identity values;
+7. capture release screenshots;
+8. pass Store certification.
 
 ## Legal / branding
 
