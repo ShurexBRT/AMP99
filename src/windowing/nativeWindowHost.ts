@@ -11,6 +11,7 @@ const POSITION_STORAGE_KEY = "amp99.nativeWindowPositions.v1";
 const SIZE_STORAGE_KEY = "amp99.nativeWindowSizes.v1";
 const AUX_VISIBILITY_STORAGE_KEY = "amp99.nativeAuxVisibility.v1";
 const SNAP_THRESHOLD_PX = 14;
+const DOCK_LINK_THRESHOLD_PX = 2;
 
 const BASE_SIZE: Record<Amp99NativeWindowRole, { width: number; height: number }> = {
   main: { width: 275, height: 116 },
@@ -39,12 +40,22 @@ type AuxVisibility = {
   playlist: boolean;
 };
 
+type WindowGeometry = {
+  role: Amp99NativeWindowRole;
+  window: WebviewWindow;
+  position: PhysicalPosition;
+  width: number;
+  height: number;
+};
+
+function isAmp99NativeWindowRole(label: string): label is Amp99NativeWindowRole {
+  return label === "main" || label === "equalizer" || label === "playlist";
+}
+
 export function currentNativeWindowRole(): Amp99NativeWindowRole | "browser" {
   if (!isTauri()) return "browser";
   const label = getCurrentWebviewWindow().label;
-  return label === "main" || label === "equalizer" || label === "playlist"
-    ? label
-    : "browser";
+  return isAmp99NativeWindowRole(label) ? label : "browser";
 }
 
 export function isNativeHostFor(role: Amp99NativeWindowRole): boolean {
@@ -207,16 +218,102 @@ export async function hideCurrentNativeWindow(): Promise<void> {
   await getCurrentWebviewWindow().hide();
 }
 
+function geometriesAreDocked(a: WindowGeometry, b: WindowGeometry): boolean {
+  const aLeft = a.position.x;
+  const aRight = aLeft + a.width;
+  const aTop = a.position.y;
+  const aBottom = aTop + a.height;
+  const bLeft = b.position.x;
+  const bRight = bLeft + b.width;
+  const bTop = b.position.y;
+  const bBottom = bTop + b.height;
+
+  const verticalOverlap = Math.min(aBottom, bBottom) - Math.max(aTop, bTop) > 0;
+  const horizontalOverlap = Math.min(aRight, bRight) - Math.max(aLeft, bLeft) > 0;
+
+  const touchesHorizontally =
+    Math.abs(aRight - bLeft) <= DOCK_LINK_THRESHOLD_PX ||
+    Math.abs(bRight - aLeft) <= DOCK_LINK_THRESHOLD_PX;
+  const touchesVertically =
+    Math.abs(aBottom - bTop) <= DOCK_LINK_THRESHOLD_PX ||
+    Math.abs(bBottom - aTop) <= DOCK_LINK_THRESHOLD_PX;
+
+  return (
+    (touchesHorizontally && verticalOverlap) ||
+    (touchesVertically && horizontalOverlap)
+  );
+}
+
+async function visibleWindowGeometries(
+  current: WebviewWindow,
+  currentPositionOverride?: PhysicalPosition,
+): Promise<WindowGeometry[]> {
+  const geometries: WindowGeometry[] = [];
+
+  for (const candidate of await getAllWebviewWindows()) {
+    if (!isAmp99NativeWindowRole(candidate.label)) continue;
+    if (!(await candidate.isVisible())) continue;
+
+    const position =
+      candidate.label === current.label && currentPositionOverride
+        ? currentPositionOverride
+        : await candidate.outerPosition();
+    const size = await candidate.outerSize();
+
+    geometries.push({
+      role: candidate.label,
+      window: candidate,
+      position,
+      width: size.width,
+      height: size.height,
+    });
+  }
+
+  return geometries;
+}
+
+async function dockedGroupFromMain(
+  current: WebviewWindow,
+  previousMainPosition: PhysicalPosition,
+): Promise<WindowGeometry[]> {
+  const geometries = await visibleWindowGeometries(current, previousMainPosition);
+  const main = geometries.find((geometry) => geometry.role === "main");
+  if (!main) return [];
+
+  const connected = new Set<Amp99NativeWindowRole>(["main"]);
+  let expanded = true;
+
+  while (expanded) {
+    expanded = false;
+    for (const candidate of geometries) {
+      if (connected.has(candidate.role)) continue;
+      const attachesToGroup = geometries.some(
+        (member) =>
+          connected.has(member.role) && geometriesAreDocked(member, candidate),
+      );
+      if (attachesToGroup) {
+        connected.add(candidate.role);
+        expanded = true;
+      }
+    }
+  }
+
+  return geometries.filter(
+    (geometry) => geometry.role !== "main" && connected.has(geometry.role),
+  );
+}
+
 async function snappedPosition(
   current: WebviewWindow,
   position: PhysicalPosition,
+  excludedLabels: ReadonlySet<string> = new Set(),
 ): Promise<PhysicalPosition> {
   const currentSize = await current.outerSize();
   let x = position.x;
   let y = position.y;
 
   for (const other of await getAllWebviewWindows()) {
-    if (other.label === current.label) continue;
+    if (other.label === current.label || excludedLabels.has(other.label)) continue;
     if (!(await other.isVisible())) continue;
 
     const otherPosition = await other.outerPosition();
@@ -264,6 +361,38 @@ async function snappedPosition(
   return new PhysicalPosition(x, y);
 }
 
+async function moveDockedGroupWithMain(
+  current: WebviewWindow,
+  previousMainPosition: PhysicalPosition,
+  requestedMainPosition: PhysicalPosition,
+): Promise<PhysicalPosition> {
+  const docked = await dockedGroupFromMain(current, previousMainPosition);
+  const excluded = new Set(docked.map((geometry) => geometry.role));
+  const finalMainPosition = await snappedPosition(
+    current,
+    requestedMainPosition,
+    excluded,
+  );
+
+  const deltaX = finalMainPosition.x - previousMainPosition.x;
+  const deltaY = finalMainPosition.y - previousMainPosition.y;
+
+  if ((deltaX !== 0 || deltaY !== 0) && docked.length > 0) {
+    await Promise.all(
+      docked.map(async (geometry) => {
+        const next = new PhysicalPosition(
+          geometry.position.x + deltaX,
+          geometry.position.y + deltaY,
+        );
+        await geometry.window.setPosition(next);
+        savePosition(geometry.role, next);
+      }),
+    );
+  }
+
+  return finalMainPosition;
+}
+
 export async function installNativeWindowHost(
   role: Amp99NativeWindowRole,
 ): Promise<() => void> {
@@ -288,6 +417,8 @@ export async function installNativeWindowHost(
     }
   }
 
+  let lastKnownPosition = await current.outerPosition();
+
   const onMainFocus = () => {
     if (role === "main") void restoreAuxVisibility();
   };
@@ -297,6 +428,9 @@ export async function installNativeWindowHost(
   }
 
   let snapping = false;
+  let mainMoveBusy = false;
+  let pendingMainPosition: PhysicalPosition | null = null;
+
   const unlistenResized = await current.onResized(({ payload }) => {
     if (
       role !== "playlist" ||
@@ -312,14 +446,56 @@ export async function installNativeWindowHost(
     })();
   });
 
+  const processMainMoves = async () => {
+    if (mainMoveBusy) return;
+    mainMoveBusy = true;
+
+    try {
+      while (pendingMainPosition) {
+        const requested = pendingMainPosition;
+        pendingMainPosition = null;
+        const previous = lastKnownPosition;
+        const next = await moveDockedGroupWithMain(current, previous, requested);
+
+        if (next.x !== requested.x || next.y !== requested.y) {
+          snapping = true;
+          try {
+            await current.setPosition(next);
+          } finally {
+            window.setTimeout(() => {
+              snapping = false;
+            }, 0);
+          }
+        }
+
+        lastKnownPosition = next;
+        savePosition(role, next);
+      }
+    } finally {
+      mainMoveBusy = false;
+      if (pendingMainPosition) void processMainMoves();
+    }
+  };
+
   const unlistenMoved = await current.onMoved(({ payload }) => {
-    if (snapping) return;
+    if (snapping) {
+      lastKnownPosition = payload;
+      return;
+    }
+
+    if (role === "main") {
+      pendingMainPosition = payload;
+      void processMainMoves();
+      return;
+    }
+
     void (async () => {
       const next = await snappedPosition(current, payload);
       if (next.x !== payload.x || next.y !== payload.y) {
         snapping = true;
         try {
           await current.setPosition(next);
+          lastKnownPosition = next;
           savePosition(role, next);
         } finally {
           window.setTimeout(() => {
@@ -327,6 +503,7 @@ export async function installNativeWindowHost(
           }, 0);
         }
       } else {
+        lastKnownPosition = payload;
         savePosition(role, payload);
       }
     })();
