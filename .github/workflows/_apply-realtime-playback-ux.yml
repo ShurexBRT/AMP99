@@ -1,0 +1,230 @@
+name: Apply realtime playback UX fixes
+
+on:
+  push:
+    branches:
+      - agent/chatgpt/realtime-playback-ux
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/chatgpt/realtime-playback-ux
+          fetch-depth: 0
+      - name: Apply targeted patches
+        shell: python
+        run: |
+          from pathlib import Path
+          import json
+
+          def replace_required(path, old, new, count=1):
+              p = Path(path)
+              text = p.read_text(encoding="utf-8")
+              if old not in text:
+                  raise SystemExit(f"Expected text not found in {path}: {old[:120]!r}")
+              text = text.replace(old, new, count)
+              p.write_text(text, encoding="utf-8")
+
+          # Release Windows builds must not spawn a console window.
+          main_rs = Path("src-tauri/src/main.rs")
+          main_text = main_rs.read_text(encoding="utf-8")
+          if "windows_subsystem = \"windows\"" not in main_text:
+              main_rs.write_text(
+                  '#![cfg_attr(\n    all(not(debug_assertions), target_os = "windows"),\n    windows_subsystem = "windows"\n)]\n\n' + main_text,
+                  encoding="utf-8",
+              )
+
+          # Packaged playlist is mouse-resizable; Main and EQ stay classic fixed-size.
+          conf_path = Path("src-tauri/tauri.conf.json")
+          conf = json.loads(conf_path.read_text(encoding="utf-8"))
+          playlist = next(window for window in conf["app"]["windows"] if window["label"] == "playlist")
+          playlist["resizable"] = True
+          playlist["minWidth"] = 275
+          playlist["minHeight"] = 145
+          conf_path.write_text(json.dumps(conf, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+          # Permission needed by the explicit classic resize grip.
+          cap_path = Path("src-tauri/capabilities/default.json")
+          cap = json.loads(cap_path.read_text(encoding="utf-8"))
+          permission = "core:window:allow-start-resize-dragging"
+          if permission not in cap["permissions"]:
+              cap["permissions"].append(permission)
+          cap_path.write_text(json.dumps(cap, indent=2) + "\n", encoding="utf-8")
+
+          # Persist user-selected playlist dimensions and expose native resize dragging.
+          host_path = Path("src/windowing/nativeWindowHost.ts")
+          host = host_path.read_text(encoding="utf-8")
+          host = host.replace(
+              'import { LogicalSize, PhysicalPosition } from "@tauri-apps/api/dpi";',
+              'import { LogicalSize, PhysicalPosition } from "@tauri-apps/api/dpi";',
+          )
+          host = host.replace(
+              'const POSITION_STORAGE_KEY = "amp99.nativeWindowPositions.v1";\nconst AUX_VISIBILITY_STORAGE_KEY = "amp99.nativeAuxVisibility.v1";',
+              'const POSITION_STORAGE_KEY = "amp99.nativeWindowPositions.v1";\nconst SIZE_STORAGE_KEY = "amp99.nativeWindowSizes.v1";\nconst AUX_VISIBILITY_STORAGE_KEY = "amp99.nativeAuxVisibility.v1";',
+          )
+          host = host.replace(
+              'type AuxVisibility = {\n  equalizer: boolean;\n  playlist: boolean;\n};',
+              'type SavedSizes = Partial<Record<Amp99NativeWindowRole, { width: number; height: number }>>;\n\ntype NativeResizeDirection =\n  | "East"\n  | "North"\n  | "NorthEast"\n  | "NorthWest"\n  | "South"\n  | "SouthEast"\n  | "SouthWest"\n  | "West";\n\ntype AuxVisibility = {\n  equalizer: boolean;\n  playlist: boolean;\n};',
+          )
+          marker = 'function savePosition(role: Amp99NativeWindowRole, position: PhysicalPosition): void {\n  try {\n    const current = readSavedPositions();\n    current[role] = { x: position.x, y: position.y };\n    localStorage.setItem(POSITION_STORAGE_KEY, JSON.stringify(current));\n  } catch {\n    // Position persistence is a convenience; never block window movement for it.\n  }\n}\n'
+          if marker not in host:
+              raise SystemExit("nativeWindowHost savePosition marker missing")
+          host = host.replace(marker, marker + '''\nfunction readSavedSizes(): SavedSizes {\n  try {\n    return JSON.parse(localStorage.getItem(SIZE_STORAGE_KEY) || "{}") as SavedSizes;\n  } catch {\n    return {};\n  }\n}\n\nfunction saveSize(role: Amp99NativeWindowRole, width: number, height: number): void {\n  try {\n    const current = readSavedSizes();\n    current[role] = { width, height };\n    localStorage.setItem(SIZE_STORAGE_KEY, JSON.stringify(current));\n  } catch {\n    // Window-size persistence is a convenience only.\n  }\n}\n''')
+          old_size = '''  const factor = doubleSize ? 2 : 1;\n  const base = BASE_SIZE[role];\n  const height = shaded ? 14 : base.height;\n  await getCurrentWebviewWindow().setSize(\n    new LogicalSize(base.width * factor, height * factor),\n  );'''
+          new_size = '''  const factor = doubleSize ? 2 : 1;\n  const base = BASE_SIZE[role];\n\n  if (role === "playlist" && !shaded && !doubleSize) {\n    const saved = readSavedSizes().playlist;\n    if (saved) {\n      await getCurrentWebviewWindow().setSize(\n        new LogicalSize(Math.max(275, saved.width), Math.max(145, saved.height)),\n      );\n      return;\n    }\n  }\n\n  const height = shaded ? 14 : base.height;\n  await getCurrentWebviewWindow().setSize(\n    new LogicalSize(base.width * factor, height * factor),\n  );'''
+          if old_size not in host:
+              raise SystemExit("nativeWindowHost applyNativeWindowSize marker missing")
+          host = host.replace(old_size, new_size, 1)
+          drag_marker = '''export async function startNativeWindowDrag(\n  role: Amp99NativeWindowRole,\n): Promise<boolean> {\n  if (!isNativeHostFor(role)) return false;\n  await getCurrentWebviewWindow().startDragging();\n  return true;\n}\n'''
+          if drag_marker not in host:
+              raise SystemExit("nativeWindowHost drag marker missing")
+          host = host.replace(drag_marker, drag_marker + '''\nexport async function startNativeWindowResize(\n  role: Amp99NativeWindowRole,\n  direction: NativeResizeDirection = "SouthEast",\n): Promise<boolean> {\n  if (!isNativeHostFor(role)) return false;\n  await getCurrentWebviewWindow().startResizeDragging(direction);\n  return true;\n}\n''')
+          saved_pos_marker = '''  const saved = readSavedPositions()[role];\n  if (saved) {\n    await current.setPosition(new PhysicalPosition(saved.x, saved.y));\n  }\n'''
+          if saved_pos_marker not in host:
+              raise SystemExit("nativeWindowHost saved position marker missing")
+          host = host.replace(saved_pos_marker, saved_pos_marker + '''\n  if (role === "playlist") {\n    const savedSize = readSavedSizes().playlist;\n    if (savedSize) {\n      await current.setSize(\n        new LogicalSize(Math.max(275, savedSize.width), Math.max(145, savedSize.height)),\n      );\n    }\n  }\n''')
+          moved_marker = '''  const unlistenMoved = await current.onMoved(({ payload }) => {'''
+          if moved_marker not in host:
+              raise SystemExit("nativeWindowHost moved listener marker missing")
+          host = host.replace(moved_marker, '''  const unlistenResized = await current.onResized(({ payload }) => {\n    if (\n      role !== "playlist" ||\n      shadedFromDocument() ||\n      scaleFromDocument() !== 1\n    ) {\n      return;\n    }\n    void (async () => {\n      const scaleFactor = await current.scaleFactor();\n      const logical = payload.toLogical(scaleFactor);\n      saveSize(role, Math.max(275, logical.width), Math.max(145, logical.height));\n    })();\n  });\n\n  const unlistenMoved = await current.onMoved(({ payload }) => {''', 1)
+          host = host.replace(
+              '''  return () => {\n    unlistenMoved();\n    if (role === "main") window.removeEventListener("focus", onMainFocus);\n  };''',
+              '''  return () => {\n    unlistenResized();\n    unlistenMoved();\n    if (role === "main") window.removeEventListener("focus", onMainFocus);\n  };''',
+              1,
+          )
+          host_path.write_text(host, encoding="utf-8")
+
+          # Native playlist fills its real OS window and exposes a classic resize grip.
+          native_css = Path("src/native-windows.css")
+          css = native_css.read_text(encoding="utf-8")
+          addition = '''\nhtml[data-native-window="true"][data-window-role="playlist"] .native-window-root {\n  width: 100%;\n  height: 100%;\n}\n\nhtml[data-native-window="true"][data-window-role="playlist"] .playlist-window.native-host-window {\n  width: 100% !important;\n  height: 100% !important;\n  min-width: 275px;\n  min-height: 145px;\n  background-size: 100% 100%;\n}\n\n.playlist-resize-handle {\n  display: none;\n}\n\nhtml[data-native-window="true"][data-window-role="playlist"] .playlist-resize-handle {\n  display: block;\n  position: absolute;\n  right: 0;\n  bottom: 0;\n  width: 12px;\n  height: 12px;\n  padding: 0;\n  border: 0;\n  background: repeating-linear-gradient(135deg, transparent 0 2px, #909090 2px 3px, transparent 3px 5px);\n  cursor: nwse-resize;\n  z-index: 90;\n}\n'''
+          if '.playlist-resize-handle' not in css:
+              native_css.write_text(css + addition, encoding="utf-8")
+
+          # Playlist menu wording + explicit resize grip.
+          playlist_path = Path("src/components/PlaylistEditor.tsx")
+          playlist_text = playlist_path.read_text(encoding="utf-8")
+          playlist_text = playlist_text.replace(
+              'import { WindowFrame } from "./WindowFrame";',
+              'import { startNativeWindowResize } from "../windowing/nativeWindowHost";\nimport { WindowFrame } from "./WindowFrame";',
+              1,
+          )
+          playlist_text = playlist_text.replace('"Load Winamp Skin..."', '"Load Skin..."')
+          resize_insertion = '''      {createDialogOpen && ('''
+          if resize_insertion not in playlist_text:
+              raise SystemExit("Playlist dialog insertion marker missing")
+          playlist_text = playlist_text.replace(resize_insertion, '''      <button\n        type="button"\n        className="playlist-resize-handle"\n        aria-label="Resize Playlist Editor"\n        title="Drag to resize Playlist Editor"\n        onPointerDown={(event) => {\n          event.preventDefault();\n          event.stopPropagation();\n          void startNativeWindowResize("playlist", "SouthEast");\n        }}\n      />\n\n''' + resize_insertion, 1)
+          playlist_path.write_text(playlist_text, encoding="utf-8")
+
+          # Realtime UI progress and deterministic playback-reactive visualizer.
+          player_path = Path("src/components/MainPlayer.tsx")
+          player = player_path.read_text(encoding="utf-8")
+          player = player.replace(
+              'import { useState, type CSSProperties } from "react";',
+              'import { useEffect, useRef, useState, type CSSProperties } from "react";',
+              1,
+          )
+          helper_marker = '''function LegacySpriteButton({'''
+          if helper_marker not in player:
+              raise SystemExit("MainPlayer helper marker missing")
+          helpers = '''function useRealtimeProgress(\n  track: Track,\n  isPlaying: boolean,\n  progress: number,\n): number {\n  const [displayProgress, setDisplayProgress] = useState(progress);\n  const baselineRef = useRef({\n    trackId: track.id,\n    progress,\n    at: performance.now(),\n  });\n\n  useEffect(() => {\n    baselineRef.current = {\n      trackId: track.id,\n      progress,\n      at: performance.now(),\n    };\n    setDisplayProgress(progress);\n  }, [track.id, progress]);\n\n  useEffect(() => {\n    if (!isPlaying || track.duration <= 0) return;\n\n    const timer = window.setInterval(() => {\n      const baseline = baselineRef.current;\n      if (baseline.trackId !== track.id) return;\n      const elapsedSeconds = (performance.now() - baseline.at) / 1000;\n      setDisplayProgress(\n        Math.min(100, baseline.progress + (elapsedSeconds / track.duration) * 100),\n      );\n    }, 100);\n\n    return () => window.clearInterval(timer);\n  }, [isPlaying, track.id, track.duration]);\n\n  return displayProgress;\n}\n\nfunction spectrumHeights(\n  track: Track,\n  elapsedSeconds: number,\n  isPlaying: boolean,\n  count: number,\n  maxHeight: number,\n): number[] {\n  if (!isPlaying) return Array.from({ length: count }, () => 2);\n\n  const key = `${track.source ?? "local"}:${track.id}:${track.uri ?? track.title}`;\n  let seed = 2166136261;\n  for (let index = 0; index < key.length; index += 1) {\n    seed ^= key.charCodeAt(index);\n    seed = Math.imul(seed, 16777619);\n  }\n\n  return Array.from({ length: count }, (_, index) => {\n    const phase = ((seed >>> (index % 16)) & 31) / 31;\n    const speed = 2.2 + (((seed >>> ((index + 5) % 20)) & 15) / 15) * 3.4;\n    const primary = Math.sin(elapsedSeconds * speed + index * 0.73 + phase * Math.PI);\n    const secondary = Math.sin(elapsedSeconds * (speed * 0.47) + index * 1.31);\n    const energy = Math.max(0, Math.min(1, 0.54 + primary * 0.28 + secondary * 0.18));\n    return Math.max(2, Math.round(2 + energy * (maxHeight - 2)));\n  });\n}\n\n'''
+          player = player.replace(helper_marker, helpers + helper_marker, 1)
+          player = player.replace(
+              '''  const elapsed = Math.round((props.track.duration * props.progress) / 100);\n  const sprite = (name: string) => sprites.get(name);''',
+              '''  const elapsedExact = (props.track.duration * props.progress) / 100;\n  const elapsed = Math.round(elapsedExact);\n  const spectrum = spectrumHeights(props.track, elapsedExact, props.isPlaying, 16, 16);\n  const sprite = (name: string) => sprites.get(name);''',
+              1,
+          )
+          player = player.replace(
+              '''          {[7, 13, 9, 16, 5, 12, 15, 8, 14, 6, 16, 10, 13, 7, 11, 5].map((height, index) => (\n            <i key={index} style={{ height }} />\n          ))}''',
+              '''          {spectrum.map((height, index) => (\n            <i key={index} style={{ height, transition: "height 80ms linear" }} />\n          ))}''',
+              1,
+          )
+          player = player.replace(
+              'value={props.volume} aria-label="Volume" onChange={(event) => props.onVolume(Number(event.target.value))}',
+              'value={props.volume} aria-label="Volume" onInput={(event) => props.onVolume(Number(event.currentTarget.value))} onChange={() => undefined}',
+              1,
+          )
+          player = player.replace(
+              'value={props.balance} aria-label="Balance" onChange={(event) => props.onBalance(Number(event.target.value))}',
+              'value={props.balance} aria-label="Balance" onInput={(event) => props.onBalance(Number(event.currentTarget.value))} onChange={() => undefined}',
+              1,
+          )
+          player = player.replace(
+              'value={props.progress} aria-label="Seek" onChange={(event) => props.onProgress(Number(event.target.value))}',
+              'value={props.progress} aria-label="Seek" onInput={(event) => props.onProgress(Number(event.currentTarget.value))} onChange={() => undefined}',
+              1,
+          )
+          player = player.replace(
+              '''function DefaultMainPlayer(props: Props) {\n  const elapsed = Math.round((props.track.duration * props.progress) / 100);''',
+              '''function DefaultMainPlayer(props: Props) {\n  const elapsedExact = (props.track.duration * props.progress) / 100;\n  const elapsed = Math.round(elapsedExact);\n  const spectrum = spectrumHeights(props.track, elapsedExact, props.isPlaying, 18, 20);''',
+              1,
+          )
+          player = player.replace(
+              '''            {[7, 14, 10, 18, 5, 13, 20, 9, 15, 6, 17, 11, 20, 8, 13, 5, 16, 10].map((height, index) => <i key={index} style={{ height }} />)}''',
+              '''            {spectrum.map((height, index) => <i key={index} style={{ height, transition: "height 80ms linear" }} />)}''',
+              1,
+          )
+          player = player.replace(
+              'value={props.progress} onChange={(e) => props.onProgress(Number(e.target.value))} aria-label="Seek"',
+              'value={props.progress} onInput={(e) => props.onProgress(Number(e.currentTarget.value))} onChange={() => undefined} aria-label="Seek"',
+              1,
+          )
+          player = player.replace(
+              'value={props.volume} onChange={(e) => props.onVolume(Number(e.target.value))} aria-label="Volume"',
+              'value={props.volume} onInput={(e) => props.onVolume(Number(e.currentTarget.value))} onChange={() => undefined} aria-label="Volume"',
+              1,
+          )
+          wrapper_marker = '''export function MainPlayer(props: Props) {\n  useDesktopMediaControls({'''
+          if wrapper_marker not in player:
+              raise SystemExit("MainPlayer wrapper marker missing")
+          player = player.replace(wrapper_marker, '''export function MainPlayer(props: Props) {\n  const realtimeProgress = useRealtimeProgress(\n    props.track,\n    props.isPlaying,\n    props.progress,\n  );\n  const liveProps = { ...props, progress: realtimeProgress };\n\n  useDesktopMediaControls({''', 1)
+          player = player.replace(
+              '''  if (hasLegacySkin && props.skinSprites) {\n    return <LegacyMainPlayer {...props} sprites={props.skinSprites} />;\n  }\n\n  return <DefaultMainPlayer {...props} />;''',
+              '''  if (hasLegacySkin && props.skinSprites) {\n    return <LegacyMainPlayer {...liveProps} sprites={props.skinSprites} />;\n  }\n\n  return <DefaultMainPlayer {...liveProps} />;''',
+              1,
+          )
+          player_path.write_text(player, encoding="utf-8")
+
+          # Schedule AMP99 queue auto-advance shortly before the single-URI Spotify item ends.
+          app_path = Path("src/App.tsx")
+          app = app_path.read_text(encoding="utf-8")
+          app = app.replace(
+              'import { useEffect, useMemo, useState } from "react";',
+              'import { useEffect, useMemo, useRef, useState } from "react";',
+              1,
+          )
+          playback_marker = '''  const playback = useSpotifyPlayback({\n    enabled: spotify.authenticated,\n    initialVolume: amp.volume,\n  });'''
+          if playback_marker not in app:
+              raise SystemExit("App playback marker missing")
+          app = app.replace(playback_marker, playback_marker + '''\n  const autoAdvanceTimerRef = useRef<number | null>(null);''', 1)
+          next_marker = '''  const nextTrack = async () => {\n    if (amp.tracks.length === 0) return;\n    const index = (amp.currentIndex + 1) % amp.tracks.length;\n    await playTrackAt(index);\n  };\n'''
+          if next_marker not in app:
+              raise SystemExit("App nextTrack marker missing")
+          app = app.replace(next_marker, next_marker + '''\n  useEffect(() => {\n    if (autoAdvanceTimerRef.current !== null) {\n      window.clearTimeout(autoAdvanceTimerRef.current);\n      autoAdvanceTimerRef.current = null;\n    }\n\n    const snapshot = playback.snapshot;\n    if (\n      !snapshot ||\n      snapshot.paused ||\n      amp.repeat ||\n      snapshot.durationMs <= 0 ||\n      !snapshot.currentTrackUri ||\n      snapshot.currentTrackUri !== amp.currentTrack.uri\n    ) {\n      return;\n    }\n\n    const remainingMs = Math.max(0, snapshot.durationMs - snapshot.positionMs);\n    autoAdvanceTimerRef.current = window.setTimeout(() => {\n      autoAdvanceTimerRef.current = null;\n      void nextTrack();\n    }, Math.max(0, remainingMs - 75));\n\n    return () => {\n      if (autoAdvanceTimerRef.current !== null) {\n        window.clearTimeout(autoAdvanceTimerRef.current);\n        autoAdvanceTimerRef.current = null;\n      }\n    };\n  }, [\n    playback.snapshot?.currentTrackUri,\n    playback.snapshot?.positionMs,\n    playback.snapshot?.durationMs,\n    playback.snapshot?.paused,\n    amp.currentTrack.uri,\n    amp.repeat,\n    amp.currentIndex,\n    amp.tracks.length,\n  ]);\n''', 1)
+          app_path.write_text(app, encoding="utf-8")
+
+          # Fix stale product tagline inside Spotify Connect device name.
+          playback_path = Path("src/spotify/useSpotifyPlayback.ts")
+          playback_text = playback_path.read_text(encoding="utf-8")
+          playback_text = playback_text.replace(
+              'name: "AMP99 — Play it like it\'s \'99",',
+              'name: "AMP99 — Play it like it\'s 1999",',
+          )
+          playback_path.write_text(playback_text, encoding="utf-8")
+
+          # Remove this one-shot workflow from the feature branch before committing.
+          Path(".github/workflows/_apply-realtime-playback-ux.yml").unlink()
+
+      - name: Commit patches
+        run: |
+          git config user.name "AMP99 CI Patch Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "Fix realtime playback UX and playlist resizing"
+          git push origin HEAD:agent/chatgpt/realtime-playback-ux
