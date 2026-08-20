@@ -1,10 +1,7 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import {
-  getCurrentWebviewWindow,
-  WebviewWindow,
-} from "@tauri-apps/api/webviewWindow";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useEffect, useState } from "react";
 import {
   getPreferencesSnapshot,
@@ -13,14 +10,10 @@ import {
 } from "./preferencesStore";
 
 const ALWAYS_ON_TOP_EVENT = "amp99://always-on-top-changed";
-const PREFERENCES_WINDOW_LABEL = "preferences";
 
 export async function showPreferencesWindow(): Promise<void> {
   if (!isTauri()) return;
-  const window = await WebviewWindow.getByLabel(PREFERENCES_WINDOW_LABEL);
-  if (!window) throw new Error("AMP99 Preferences window is unavailable.");
-  await window.show();
-  await window.setFocus();
+  await invoke("show_preferences_window");
 }
 
 export async function hidePreferencesWindow(): Promise<void> {
