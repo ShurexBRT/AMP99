@@ -93,7 +93,7 @@ export function useSpotifyPlayback({ enabled, initialVolume }: Options) {
         if (disposed) return;
 
         player = new Player({
-          name: "AMP99 — Play it like it's '99",
+          name: "AMP99 — Play it like it's 1999",
           volume: Math.max(0, Math.min(1, initialVolumeRef.current / 100)),
           enableMediaSession: true,
           getOAuthToken: (callback) => {

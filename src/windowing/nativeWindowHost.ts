@@ -8,6 +8,7 @@ import {
 import type { Amp99NativeWindowRole } from "./bridge";
 
 const POSITION_STORAGE_KEY = "amp99.nativeWindowPositions.v1";
+const SIZE_STORAGE_KEY = "amp99.nativeWindowSizes.v1";
 const AUX_VISIBILITY_STORAGE_KEY = "amp99.nativeAuxVisibility.v1";
 const SNAP_THRESHOLD_PX = 14;
 
@@ -20,6 +21,18 @@ const BASE_SIZE: Record<Amp99NativeWindowRole, { width: number; height: number }
 type SavedPositions = Partial<
   Record<Amp99NativeWindowRole, { x: number; y: number }>
 >;
+
+type SavedSizes = Partial<Record<Amp99NativeWindowRole, { width: number; height: number }>>;
+
+type NativeResizeDirection =
+  | "East"
+  | "North"
+  | "NorthEast"
+  | "NorthWest"
+  | "South"
+  | "SouthEast"
+  | "SouthWest"
+  | "West";
 
 type AuxVisibility = {
   equalizer: boolean;
@@ -53,6 +66,24 @@ function savePosition(role: Amp99NativeWindowRole, position: PhysicalPosition): 
     localStorage.setItem(POSITION_STORAGE_KEY, JSON.stringify(current));
   } catch {
     // Position persistence is a convenience; never block window movement for it.
+  }
+}
+
+function readSavedSizes(): SavedSizes {
+  try {
+    return JSON.parse(localStorage.getItem(SIZE_STORAGE_KEY) || "{}") as SavedSizes;
+  } catch {
+    return {};
+  }
+}
+
+function saveSize(role: Amp99NativeWindowRole, width: number, height: number): void {
+  try {
+    const current = readSavedSizes();
+    current[role] = { width, height };
+    localStorage.setItem(SIZE_STORAGE_KEY, JSON.stringify(current));
+  } catch {
+    // Window-size persistence is a convenience only.
   }
 }
 
@@ -112,6 +143,17 @@ export async function applyNativeWindowSize(
   document.documentElement.dataset.doubleSize = doubleSize ? "true" : "false";
   const factor = doubleSize ? 2 : 1;
   const base = BASE_SIZE[role];
+
+  if (role === "playlist" && !shaded && !doubleSize) {
+    const saved = readSavedSizes().playlist;
+    if (saved) {
+      await getCurrentWebviewWindow().setSize(
+        new LogicalSize(Math.max(275, saved.width), Math.max(145, saved.height)),
+      );
+      return;
+    }
+  }
+
   const height = shaded ? 14 : base.height;
   await getCurrentWebviewWindow().setSize(
     new LogicalSize(base.width * factor, height * factor),
@@ -132,6 +174,15 @@ export async function startNativeWindowDrag(
 ): Promise<boolean> {
   if (!isNativeHostFor(role)) return false;
   await getCurrentWebviewWindow().startDragging();
+  return true;
+}
+
+export async function startNativeWindowResize(
+  role: Amp99NativeWindowRole,
+  direction: NativeResizeDirection = "SouthEast",
+): Promise<boolean> {
+  if (!isNativeHostFor(role)) return false;
+  await getCurrentWebviewWindow().startResizeDragging(direction);
   return true;
 }
 
@@ -228,6 +279,15 @@ export async function installNativeWindowHost(
     await current.setPosition(new PhysicalPosition(saved.x, saved.y));
   }
 
+  if (role === "playlist") {
+    const savedSize = readSavedSizes().playlist;
+    if (savedSize) {
+      await current.setSize(
+        new LogicalSize(Math.max(275, savedSize.width), Math.max(145, savedSize.height)),
+      );
+    }
+  }
+
   const onMainFocus = () => {
     if (role === "main") void restoreAuxVisibility();
   };
@@ -237,6 +297,21 @@ export async function installNativeWindowHost(
   }
 
   let snapping = false;
+  const unlistenResized = await current.onResized(({ payload }) => {
+    if (
+      role !== "playlist" ||
+      shadedFromDocument() ||
+      scaleFromDocument() !== 1
+    ) {
+      return;
+    }
+    void (async () => {
+      const scaleFactor = await current.scaleFactor();
+      const logical = payload.toLogical(scaleFactor);
+      saveSize(role, Math.max(275, logical.width), Math.max(145, logical.height));
+    })();
+  });
+
   const unlistenMoved = await current.onMoved(({ payload }) => {
     if (snapping) return;
     void (async () => {
@@ -258,6 +333,7 @@ export async function installNativeWindowHost(
   });
 
   return () => {
+    unlistenResized();
     unlistenMoved();
     if (role === "main") window.removeEventListener("focus", onMainFocus);
   };

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Equalizer } from "./components/Equalizer";
 import { MainPlayer } from "./components/MainPlayer";
 import { PlaylistEditor } from "./components/PlaylistEditor";
@@ -61,6 +61,7 @@ function MainController({ native }: { native: boolean }) {
     enabled: spotify.authenticated,
     initialVolume: amp.volume,
   });
+  const autoAdvanceTimerRef = useRef<number | null>(null);
 
   useNativeWindowHost("main", amp.doubleSize);
 
@@ -258,6 +259,47 @@ function MainController({ native }: { native: boolean }) {
     const index = (amp.currentIndex + 1) % amp.tracks.length;
     await playTrackAt(index);
   };
+
+  useEffect(() => {
+    if (autoAdvanceTimerRef.current !== null) {
+      window.clearTimeout(autoAdvanceTimerRef.current);
+      autoAdvanceTimerRef.current = null;
+    }
+
+    const snapshot = playback.snapshot;
+    if (
+      !snapshot ||
+      snapshot.paused ||
+      amp.repeat ||
+      snapshot.durationMs <= 0 ||
+      !snapshot.currentTrackUri ||
+      snapshot.currentTrackUri !== amp.currentTrack.uri
+    ) {
+      return;
+    }
+
+    const remainingMs = Math.max(0, snapshot.durationMs - snapshot.positionMs);
+    autoAdvanceTimerRef.current = window.setTimeout(() => {
+      autoAdvanceTimerRef.current = null;
+      void nextTrack();
+    }, Math.max(0, remainingMs - 75));
+
+    return () => {
+      if (autoAdvanceTimerRef.current !== null) {
+        window.clearTimeout(autoAdvanceTimerRef.current);
+        autoAdvanceTimerRef.current = null;
+      }
+    };
+  }, [
+    playback.snapshot?.currentTrackUri,
+    playback.snapshot?.positionMs,
+    playback.snapshot?.durationMs,
+    playback.snapshot?.paused,
+    amp.currentTrack.uri,
+    amp.repeat,
+    amp.currentIndex,
+    amp.tracks.length,
+  ]);
 
   const togglePlay = async () => {
     const track = amp.currentTrack;

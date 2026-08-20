@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useDesktopMediaControls } from "../platform/useDesktopMediaControls";
 import type { Track, WindowPosition } from "../types/player";
 import { WindowFrame } from "./WindowFrame";
@@ -63,6 +63,71 @@ function timeDigits(value: number): number[] {
   ];
 }
 
+function useRealtimeProgress(
+  track: Track,
+  isPlaying: boolean,
+  progress: number,
+): number {
+  const [displayProgress, setDisplayProgress] = useState(progress);
+  const baselineRef = useRef({
+    trackId: track.id,
+    progress,
+    at: performance.now(),
+  });
+
+  useEffect(() => {
+    baselineRef.current = {
+      trackId: track.id,
+      progress,
+      at: performance.now(),
+    };
+    setDisplayProgress(progress);
+  }, [track.id, progress]);
+
+  useEffect(() => {
+    if (!isPlaying || track.duration <= 0) return;
+
+    const timer = window.setInterval(() => {
+      const baseline = baselineRef.current;
+      if (baseline.trackId !== track.id) return;
+      const elapsedSeconds = (performance.now() - baseline.at) / 1000;
+      setDisplayProgress(
+        Math.min(100, baseline.progress + (elapsedSeconds / track.duration) * 100),
+      );
+    }, 100);
+
+    return () => window.clearInterval(timer);
+  }, [isPlaying, track.id, track.duration]);
+
+  return displayProgress;
+}
+
+function spectrumHeights(
+  track: Track,
+  elapsedSeconds: number,
+  isPlaying: boolean,
+  count: number,
+  maxHeight: number,
+): number[] {
+  if (!isPlaying) return Array.from({ length: count }, () => 2);
+
+  const key = `${track.source ?? "local"}:${track.id}:${track.uri ?? track.title}`;
+  let seed = 2166136261;
+  for (let index = 0; index < key.length; index += 1) {
+    seed ^= key.charCodeAt(index);
+    seed = Math.imul(seed, 16777619);
+  }
+
+  return Array.from({ length: count }, (_, index) => {
+    const phase = ((seed >>> (index % 16)) & 31) / 31;
+    const speed = 2.2 + (((seed >>> ((index + 5) % 20)) & 15) / 15) * 3.4;
+    const primary = Math.sin(elapsedSeconds * speed + index * 0.73 + phase * Math.PI);
+    const secondary = Math.sin(elapsedSeconds * (speed * 0.47) + index * 1.31);
+    const energy = Math.max(0, Math.min(1, 0.54 + primary * 0.28 + secondary * 0.18));
+    return Math.max(2, Math.round(2 + energy * (maxHeight - 2)));
+  });
+}
+
 function LegacySpriteButton({
   label,
   className,
@@ -123,7 +188,9 @@ function LegacyTime({ elapsed, sprites }: { elapsed: number; sprites: ReadonlyMa
 
 function LegacyMainPlayer(props: Props & { sprites: ReadonlyMap<string, string> }) {
   const { sprites } = props;
-  const elapsed = Math.round((props.track.duration * props.progress) / 100);
+  const elapsedExact = (props.track.duration * props.progress) / 100;
+  const elapsed = Math.round(elapsedExact);
+  const spectrum = spectrumHeights(props.track, elapsedExact, props.isPlaying, 16, 16);
   const sprite = (name: string) => sprites.get(name);
   const playbackIndicator = sprite(props.isPlaying ? "main.playing" : "main.stopped");
   const volumeFrame = Math.max(1, Math.round((props.volume / 100) * 28));
@@ -171,8 +238,8 @@ function LegacyMainPlayer(props: Props & { sprites: ReadonlyMap<string, string> 
         </div>
 
         <div className="legacy-spectrum" aria-hidden="true">
-          {[7, 13, 9, 16, 5, 12, 15, 8, 14, 6, 16, 10, 13, 7, 11, 5].map((height, index) => (
-            <i key={index} style={{ height }} />
+          {spectrum.map((height, index) => (
+            <i key={index} style={{ height, transition: "height 80ms linear" }} />
           ))}
         </div>
 
@@ -182,14 +249,14 @@ function LegacyMainPlayer(props: Props & { sprites: ReadonlyMap<string, string> 
         </div>
 
         <div className="legacy-volume-surface" style={volumeStyle}>
-          <input className="legacy-skin-range legacy-volume-range" type="range" min="0" max="100" value={props.volume} aria-label="Volume" onChange={(event) => props.onVolume(Number(event.target.value))} />
+          <input className="legacy-skin-range legacy-volume-range" type="range" min="0" max="100" value={props.volume} aria-label="Volume" onInput={(event) => props.onVolume(Number(event.currentTarget.value))} onChange={() => undefined} />
         </div>
 
         <div className="legacy-balance-surface" style={balanceStyle}>
-          <input className="legacy-skin-range legacy-balance-range" type="range" min="-100" max="100" value={props.balance} aria-label="Balance" onChange={(event) => props.onBalance(Number(event.target.value))} />
+          <input className="legacy-skin-range legacy-balance-range" type="range" min="-100" max="100" value={props.balance} aria-label="Balance" onInput={(event) => props.onBalance(Number(event.currentTarget.value))} onChange={() => undefined} />
         </div>
 
-        <input className="legacy-skin-range legacy-position-range" style={positionStyle} type="range" min="0" max="100" value={props.progress} aria-label="Seek" onChange={(event) => props.onProgress(Number(event.target.value))} />
+        <input className="legacy-skin-range legacy-position-range" style={positionStyle} type="range" min="0" max="100" value={props.progress} aria-label="Seek" onInput={(event) => props.onProgress(Number(event.currentTarget.value))} onChange={() => undefined} />
 
         <LegacySpriteButton label="Previous" className="legacy-previous" normal={sprite("main.previous")} pressed={sprite("main.previousPressed")} fallback="◀◀" onClick={props.onPrevious} />
         <LegacySpriteButton label="Play" className="legacy-play" normal={sprite("main.play")} pressed={sprite("main.playPressed")} fallback="▶" onClick={() => !props.isPlaying && props.onTogglePlay()} />
@@ -208,7 +275,9 @@ function LegacyMainPlayer(props: Props & { sprites: ReadonlyMap<string, string> 
 }
 
 function DefaultMainPlayer(props: Props) {
-  const elapsed = Math.round((props.track.duration * props.progress) / 100);
+  const elapsedExact = (props.track.duration * props.progress) / 100;
+  const elapsed = Math.round(elapsedExact);
+  const spectrum = spectrumHeights(props.track, elapsedExact, props.isPlaying, 18, 20);
   return (
     <WindowFrame title="AMP99" position={props.position} width={275} height={116} onMove={props.onMove} className="main-player">
       <div className="main-body">
@@ -217,12 +286,12 @@ function DefaultMainPlayer(props: Props) {
           <div className="status-dot">{props.isPlaying ? "▶" : "■"}</div>
           <div className="track-marquee"><span>{props.track.artist.toUpperCase()} - {props.track.title.toUpperCase()}</span></div>
           <div className="fake-spectrum" aria-hidden="true">
-            {[7, 14, 10, 18, 5, 13, 20, 9, 15, 6, 17, 11, 20, 8, 13, 5, 16, 10].map((height, index) => <i key={index} style={{ height }} />)}
+            {spectrum.map((height, index) => <i key={index} style={{ height, transition: "height 80ms linear" }} />)}
           </div>
           <span className="stream-meta">SPOTIFY DEV</span>
         </div>
 
-        <input className="seek classic-range" type="range" min="0" max="100" value={props.progress} onChange={(e) => props.onProgress(Number(e.target.value))} aria-label="Seek" />
+        <input className="seek classic-range" type="range" min="0" max="100" value={props.progress} onInput={(e) => props.onProgress(Number(e.currentTarget.value))} onChange={() => undefined} aria-label="Seek" />
 
         <div className="transport-row">
           <button title="Previous" onClick={props.onPrevious}>◀◀</button>
@@ -235,7 +304,7 @@ function DefaultMainPlayer(props: Props) {
 
         <div className="volume-line">
           <span>VOL</span>
-          <input className="classic-range compact" type="range" min="0" max="100" value={props.volume} onChange={(e) => props.onVolume(Number(e.target.value))} aria-label="Volume" />
+          <input className="classic-range compact" type="range" min="0" max="100" value={props.volume} onInput={(e) => props.onVolume(Number(e.currentTarget.value))} onChange={() => undefined} aria-label="Volume" />
         </div>
 
         <div className="toggle-row">
@@ -250,6 +319,13 @@ function DefaultMainPlayer(props: Props) {
 }
 
 export function MainPlayer(props: Props) {
+  const realtimeProgress = useRealtimeProgress(
+    props.track,
+    props.isPlaying,
+    props.progress,
+  );
+  const liveProps = { ...props, progress: realtimeProgress };
+
   useDesktopMediaControls({
     track: props.track,
     isPlaying: props.isPlaying,
@@ -262,8 +338,8 @@ export function MainPlayer(props: Props) {
   const hasLegacySkin = Boolean(props.skinSprites?.get("main.windowBackground"));
 
   if (hasLegacySkin && props.skinSprites) {
-    return <LegacyMainPlayer {...props} sprites={props.skinSprites} />;
+    return <LegacyMainPlayer {...liveProps} sprites={props.skinSprites} />;
   }
 
-  return <DefaultMainPlayer {...props} />;
+  return <DefaultMainPlayer {...liveProps} />;
 }
