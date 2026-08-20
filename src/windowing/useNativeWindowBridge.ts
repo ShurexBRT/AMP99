@@ -21,6 +21,8 @@ export function useMainWindowSnapshot(): MainWindowSnapshot | null {
 export function usePublishMainWindowSnapshot(snapshot: MainWindowSnapshot): void {
   useEffect(() => {
     publishMainSnapshot(snapshot);
+    const heartbeat = window.setInterval(() => publishMainSnapshot(snapshot), 1_000);
+    return () => window.clearInterval(heartbeat);
   }, [snapshot]);
 }
 
