@@ -125,5 +125,5 @@ export async function checkForAmp99Update(currentVersion: string): Promise<Amp99
 }
 
 export function isOfficialAmp99ReleaseUrl(url: string): boolean {
-  return url.startsWith(RELEASES_WEB_PREFIX);
+  return url.startsWith(RELEASES_WEB_PREFIX) && !/[\r\n\0]/.test(url);
 }
