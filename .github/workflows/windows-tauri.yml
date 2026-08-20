@@ -51,7 +51,7 @@ jobs:
             exit $exitCode
           }
 
-      - name: Smoke-test raw AMP99 executable
+      - name: Smoke-test raw AMP99 executable and native windows
         if: always()
         shell: pwsh
         run: |
@@ -60,6 +60,61 @@ jobs:
           function Write-SmokeLog([string]$message) {
             $line = "$(Get-Date -Format o) $message"
             $line | Tee-Object -FilePath $logPath -Append
+          }
+
+          Add-Type @"
+          using System;
+          using System.Collections.Generic;
+          using System.Runtime.InteropServices;
+          using System.Text;
+
+          public static class Amp99WindowProbe {
+              private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+              [DllImport("user32.dll")]
+              private static extern bool EnumWindows(EnumWindowsProc callback, IntPtr lParam);
+
+              [DllImport("user32.dll")]
+              private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+              [DllImport("user32.dll")]
+              private static extern bool IsWindowVisible(IntPtr hWnd);
+
+              [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+              private static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int maxCount);
+
+              [DllImport("user32.dll")]
+              private static extern int GetWindowTextLength(IntPtr hWnd);
+
+              public static string[] VisibleTitlesForProcess(int processId) {
+                  var titles = new List<string>();
+                  EnumWindows((hWnd, lParam) => {
+                      uint pid;
+                      GetWindowThreadProcessId(hWnd, out pid);
+                      if (pid != processId || !IsWindowVisible(hWnd)) return true;
+
+                      var length = GetWindowTextLength(hWnd);
+                      var builder = new StringBuilder(length + 1);
+                      GetWindowText(hWnd, builder, builder.Capacity);
+                      var title = builder.ToString();
+                      if (!String.IsNullOrWhiteSpace(title)) titles.Add(title);
+                      return true;
+                  }, IntPtr.Zero);
+                  return titles.ToArray();
+              }
+          }
+          "@
+
+          function Assert-Amp99NativeWindows([System.Diagnostics.Process]$process) {
+            $titles = [Amp99WindowProbe]::VisibleTitlesForProcess($process.Id)
+            Write-SmokeLog "Visible AMP99 windows for PID $($process.Id): $($titles -join ' | ')"
+            $expected = @("AMP99 — Play it like it's 1999", "AMP99 Equalizer", "AMP99 Playlist Editor")
+            foreach ($title in $expected) {
+              if ($titles -notcontains $title) {
+                throw "Missing native AMP99 window '$title'. Found: $($titles -join ', ')"
+              }
+            }
+            Write-SmokeLog "PASS three independent native AMP99 windows exist in one process"
           }
 
           $exePath = Join-Path $PWD "src-tauri/target/release/amp99.exe"
@@ -78,11 +133,12 @@ jobs:
             throw "AMP99 raw executable exited during startup smoke test."
           }
 
+          Assert-Amp99NativeWindows $process
           Write-SmokeLog "PASS raw executable stayed alive for 8 seconds (PID $($process.Id))"
           Stop-Process -Id $process.Id -Force
           Start-Sleep -Seconds 1
 
-      - name: Smoke-test MSI install, WSZ handoff, launch and uninstall
+      - name: Smoke-test MSI install, native windows, WSZ handoff, launch and uninstall
         if: success()
         shell: pwsh
         run: |
@@ -92,6 +148,37 @@ jobs:
             $line = "$(Get-Date -Format o) $message"
             $line | Tee-Object -FilePath $logPath -Append
           }
+
+          Add-Type @"
+          using System;
+          using System.Collections.Generic;
+          using System.Runtime.InteropServices;
+          using System.Text;
+
+          public static class Amp99InstalledWindowProbe {
+              private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+              [DllImport("user32.dll")] private static extern bool EnumWindows(EnumWindowsProc callback, IntPtr lParam);
+              [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+              [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr hWnd);
+              [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int maxCount);
+              [DllImport("user32.dll")] private static extern int GetWindowTextLength(IntPtr hWnd);
+              public static string[] VisibleTitlesForProcess(int processId) {
+                  var titles = new List<string>();
+                  EnumWindows((hWnd, lParam) => {
+                      uint pid;
+                      GetWindowThreadProcessId(hWnd, out pid);
+                      if (pid != processId || !IsWindowVisible(hWnd)) return true;
+                      var length = GetWindowTextLength(hWnd);
+                      var builder = new StringBuilder(length + 1);
+                      GetWindowText(hWnd, builder, builder.Capacity);
+                      var title = builder.ToString();
+                      if (!String.IsNullOrWhiteSpace(title)) titles.Add(title);
+                      return true;
+                  }, IntPtr.Zero);
+                  return titles.ToArray();
+              }
+          }
+          "@
 
           $msi = Get-ChildItem -Path "src-tauri/target/release/bundle/msi" -Filter "*.msi" -File | Select-Object -First 1
           if (-not $msi) {
@@ -141,7 +228,14 @@ jobs:
             throw "Installed AMP99 executable exited during startup smoke test."
           }
 
-          Write-SmokeLog "PASS installed executable stayed alive for 8 seconds (PID $($process.Id))"
+          $titles = [Amp99InstalledWindowProbe]::VisibleTitlesForProcess($process.Id)
+          Write-SmokeLog "Installed visible windows: $($titles -join ' | ')"
+          foreach ($title in @("AMP99 — Play it like it's 1999", "AMP99 Equalizer", "AMP99 Playlist Editor")) {
+            if ($titles -notcontains $title) {
+              throw "Installed AMP99 is missing native window '$title'. Found: $($titles -join ', ')"
+            }
+          }
+          Write-SmokeLog "PASS installed AMP99 exposes three native windows"
 
           $testSkin = Join-Path $env:RUNNER_TEMP "amp99-single-instance-smoke.wsz"
           Set-Content -Path $testSkin -Value "AMP99 invalid test archive: native handoff only" -NoNewline
@@ -178,7 +272,7 @@ jobs:
             throw "AMP99 MSI silent uninstall failed with exit code $($uninstaller.ExitCode)."
           }
 
-          Write-SmokeLog "PASS MSI install, WSZ association/handoff, launch and uninstall smoke test"
+          Write-SmokeLog "PASS MSI install, three-window startup, WSZ association/handoff and uninstall smoke test"
 
       - name: Upload Windows smoke diagnostics
         if: always()
