@@ -2,136 +2,169 @@
 
 > **Play it like it's 1999.**
 
-AMP99 is a free Windows desktop music player built around the classic late-90s three-window desktop-player workflow, with Spotify integration and user-supplied Winamp-compatible `.wsz` skins.
+AMP99 is a free Windows desktop music player that recreates the classic late-90s three-window player workflow with user-supplied Winamp-compatible `.wsz` skins and a Spotify-backed library/playback layer.
 
-The product goal is **not** to build a modern Spotify client with a retro theme. AMP99 should feel like a classic desktop player that gained connected-music support as a native plugin.
+The product is **not** a modern music dashboard wearing a retro theme. The packaged Windows app is deliberately built as three small, independent desktop windows that behave like the classic player did.
 
-> **AI contributors:** read [`AGENTS.md`](./AGENTS.md) before changing code. It defines task claiming, branch ownership, architecture boundaries and handoff rules for parallel agent work.
+> **AI contributors:** read [`AGENTS.md`](./AGENTS.md) before changing code. Task claiming, branch ownership and subsystem boundaries are mandatory.
 
 ## Brand
 
 - Product: **AMP99**
 - Tagline: **Play it like it's 1999.**
 - App icon: original gunmetal hi-fi faceplate with phosphor-green `A99` LCD monogram and play indicator
-- Visual direction: graphite / black hardware surfaces, phosphor LCD green, restrained brushed-metal detail
+- App-icon source: `src-tauri/app-icon.svg`
 
-The scalable app-icon source lives at `src-tauri/app-icon.svg`. Tauri generates native and Store icon assets from that source.
+AMP99 is independent and does not bundle Winamp/Nullsoft/Spotify proprietary logos or third-party legacy skins.
 
-## Current project status
+## The desktop architecture — do not regress this
+
+The packaged Tauri build uses **three real native Windows windows**:
+
+```text
+AMP99 process
+├── main        275 × 116   Main Player
+├── equalizer   275 × 116   Equalizer
+└── playlist    275 × 232   Playlist Editor
+```
+
+These are not React panels drawn inside one large host canvas.
+
+The large shared-window layout may remain only as a browser-development fallback. It is **not the product architecture** and must never replace the native Windows layout.
+
+### Ownership model
+
+- **Main Player window** owns shared application state and is the only webview that initializes Spotify session/playback logic.
+- **Equalizer** and **Playlist Editor** are presentation/control webviews.
+- `src/windowing/` provides the typed state/command bridge between the three webviews.
+- A Spotify playback SDK must never be independently initialized inside EQ or Playlist.
+- `.wsz` skin changes synchronize across all three windows.
+
+### Native window behavior
+
+- each window moves independently as an OS window;
+- real native window dragging is used instead of moving a fake `<div>`;
+- edge snapping/docking is calculated from native outer window positions/sizes;
+- physical window positions persist;
+- EQ and Playlist can be independently shown/hidden;
+- Main `EQ` / `PL` buttons control the real auxiliary windows;
+- shade mode resizes the actual native window;
+- 1× / 2× changes native window dimensions;
+- closing Main hides the AMP99 window group to tray;
+- EQ / Playlist close independently;
+- tray restores Main and previously-visible auxiliary windows;
+- Always on Top applies to the player window group.
+
+Windows CI explicitly enumerates Win32 top-level windows for the AMP99 process and fails unless Main, Equalizer and Playlist Editor all exist as separate windows.
+
+## Current status
 
 | Area | Status | Notes |
 |---|---|---|
-| Tauri 2 desktop shell | **Implemented / Windows smoke-tested** | Raw EXE and MSI-installed EXE pass CI startup tests |
-| React + TypeScript + Vite UI | **Implemented** | Main Player, Equalizer and Playlist Editor |
-| Classic dragging / snapping | **Implemented foundation** | Persisted positions, inter-window edge snapping and viewport clamping |
-| Active/inactive + shade mode | **Implemented foundation** | Classic windows track focus; titlebar double-click toggles shade |
-| 1x / 2x display | **Implemented foundation** | Classic windows and snap calculations support both sizes |
-| `.wsz` archive loading | **Implemented / hardened** | Case-insensitive lookup, traversal protection, extraction limits and fallbacks |
-| `.wsz` Main Player rendering | **Implemented** | Classic Main Player sheets and controls render from compatible skins |
-| `.wsz` EQ rendering | **Implemented foundation** | EQMAIN / EQ_EX geometry and classic controls supported |
-| `.wsz` Playlist rendering | **Implemented foundation** | Composed PLEDIT chrome plus `PLEDIT.TXT` colors |
-| `.wsz` Windows file association | **Implemented / CI-tested** | MSI registers `.wsz`; second launch hands skin to existing AMP99 instance |
-| System tray / Always on Top | **Implemented / native build-tested** | Show, topmost toggle and Quit actions |
-| Hardware media keys | **Implemented best-effort** | Native global media-key bridge; conflicts do not block startup |
-| Windows Media Session bridge | **Implemented best-effort** | Uses Web Media Session when exposed by WebView2 |
-| DPI / multi-monitor resilience | **Implemented foundation** | Child windows clamp back into viewport on resize/visual-viewport changes |
-| Spotify Authorization Code + PKCE | **Implemented for browser/dev callback** | Native installed-app callback remains a separate gate |
-| Spotify library browsing | **Implemented** | User playlists, Liked Songs and playlist tracks |
-| Spotify playlist creation/editing | **Implemented** | Create, search, add, remove and move/reorder flows |
-| Spotify Web Playback SDK | **Implemented in frontend** | Real packaged WebView2/EME audio still needs physical runtime proof |
-| MSI / NSIS development artifacts | **Implemented / smoke-tested** | CI builds, installs, launches, tests `.wsz` handoff and uninstalls |
-| Microsoft Store MSIX pipeline | **Structural preflight implemented** | Parameterized Store manifest + MakeAppx pack/unpack verification; final Partner Center identity is external |
-| Privacy / Store / release docs | **Implemented** | See `PRIVACY.md` and `docs/` |
+| Three native Tauri windows | **Implemented / CI-gated** | Main, EQ and Playlist are separate OS windows |
+| Native dragging / snapping | **Implemented foundation** | Physical positions and edge snapping |
+| Position persistence | **Implemented** | Native window positions are remembered |
+| Shade / active states | **Implemented foundation** | Native resize + classic skin states |
+| 1× / 2× | **Implemented foundation** | Native dimensions + pixel scaling |
+| `.wsz` loading | **Implemented / hardened** | Validation, limits, path-traversal protection |
+| `.wsz` Main rendering | **Implemented** | Classic Main sheets and control states |
+| `.wsz` EQ rendering | **Implemented foundation** | `EQMAIN` / `EQ_EX` geometry |
+| `.wsz` Playlist rendering | **Implemented foundation** | `PLEDIT` chrome + `PLEDIT.TXT` colors |
+| Cross-window skin sync | **Implemented** | Same skin is applied across native webviews |
+| `.wsz` file association | **Implemented / CI-tested** | Double-click handoff to running AMP99 |
+| System tray | **Implemented** | Show, Always on Top, Quit |
+| Hardware media keys | **Implemented best-effort** | Conflicts never block startup |
+| Media Session bridge | **Implemented best-effort** | Used where WebView2 exposes it |
+| MSI / NSIS | **Implemented / smoke-tested** | Build, install, launch, handoff, uninstall |
+| Store MSIX preflight | **Implemented** | MakeAppx pack/unpack structural verification |
+| Privacy / release docs | **Implemented** | `PRIVACY.md`, `docs/` |
+| Spotify library/playlists | **Implemented foundation** | Browse, Liked Songs, search, create/edit |
+| Spotify Web Playback SDK | **Implemented in frontend** | Packaged WebView2/EME playback still needs physical proof |
+| Installed-app Spotify OAuth | **Not complete** | Explicit release gate; not part of current window refactor |
 
-## Classic desktop experience
+## Classic player features
 
-AMP99 currently provides:
+AMP99 currently includes:
 
-- Main Player, Equalizer and Playlist Editor as independent classic windows;
-- persisted window positions;
-- edge-to-edge snapping between the three windows;
-- active/inactive titlebar behavior;
-- double-click shade mode;
-- 1x / 2x display foundation;
-- play/pause/stop/previous/next;
-- seek and volume;
-- shuffle and repeat;
-- classic Playlist Editor menus and interactions;
-- system tray controls;
-- native Always on Top;
-- best-effort hardware media keys;
-- Web Media Session integration where the Windows WebView runtime exposes it.
+- Main Player;
+- Equalizer;
+- Playlist Editor;
+- play / pause / stop / previous / next;
+- seek;
+- volume;
+- balance UI;
+- shuffle / repeat;
+- classic Playlist Editor menus;
+- shade mode;
+- active/inactive titlebars;
+- native snapping/docking;
+- 1× / 2× scaling foundation;
+- tray + Always on Top;
+- hardware media-key bridge;
+- Windows `.wsz` association.
 
-The Equalizer is intentionally visual-only for Spotify playback. AMP99 does not DSP or alter the Spotify audio stream.
+The Equalizer is intentionally visual-only for Spotify playback. AMP99 does not DSP or alter Spotify audio.
 
 ## Legacy `.wsz` skins
 
-Legacy skin support is a first-class AMP99 feature.
+Legacy skin support is first-class.
 
 Current infrastructure includes:
 
 - `.wsz` / ZIP parsing with JSZip;
-- case-insensitive legacy asset lookup;
+- case-insensitive asset lookup;
 - nested-path compatibility;
-- archive/path validation and ZIP traversal protection;
-- file/archive extraction limits;
-- classic Main Player sprite sheets and control states;
-- EQMAIN / EQ_EX rendering foundation;
-- PLEDIT chrome composition and `PLEDIT.TXT` colors;
-- browser-side pixel-art sprite extraction;
-- shared skin state separated from playback/Spotify state;
+- ZIP traversal protection;
+- archive/file extraction limits;
+- classic sprite extraction/rendering;
+- Main Player sheets and pressed/selected states;
+- EQ sheets;
+- Playlist Editor chrome;
+- `PLEDIT.TXT` colors;
 - graceful fallback for optional assets;
-- Windows `.wsz` file association;
-- single-instance handoff when a skin is opened while AMP99 is already running;
-- native validation of associated `.wsz` paths/files before JS archive processing.
+- synchronization of a user-selected skin across Main/EQ/Playlist;
+- Windows file association and single-instance handoff.
 
-AMP99 does **not** bundle third-party legacy skins. Users supply their own compatible `.wsz` files.
+AMP99 does **not** ship third-party `.wsz` skins. Users supply their own files.
 
 ## Spotify status
 
-Spotify code remains isolated under `src/spotify/` and uses official developer APIs/SDKs only.
+Spotify implementation remains isolated under `src/spotify/` and uses official developer APIs/SDKs only.
 
-Already implemented:
+Already implemented in the codebase:
 
-- Authorization Code with PKCE;
+- Authorization Code with PKCE browser/dev flow;
 - token refresh/session persistence;
-- current user profile;
-- playlists and Liked Songs;
-- playlist track loading;
-- search;
+- profile, playlists and Liked Songs;
+- playlist track loading and search;
 - create/add/remove/reorder playlist operations;
 - official Web Playback SDK / Spotify Connect device path;
-- AMP99 queue-to-Spotify playback controls;
-- API error/restriction handling.
+- AMP99 playback controls mapped to Spotify;
+- API restriction/error handling.
 
-**Still not proven for a public packaged release:**
+Still explicit release gates:
 
 - installed-app native OAuth callback;
-- real Spotify Premium audio in packaged Tauri/WebView2 EME/DRM;
-- final token/session security review for the packaged application;
-- current Spotify public-distribution/quota approval requirements.
+- real Spotify Premium audio test inside packaged Tauri/WebView2 EME/DRM;
+- packaged token/session security review;
+- current Spotify public-distribution/quota requirements.
 
-Those remain explicit Spotify release gates. The current non-Spotify V1 platform pass does not pretend otherwise.
+The native multi-window refactor does not change Spotify API semantics. Main owns the existing Spotify implementation and auxiliary windows proxy commands to it.
 
-## Windows installers and automated smoke tests
+## Windows CI
 
-The main Windows workflow builds:
+The Windows workflow builds MSI and NSIS installers and verifies:
 
-- MSI (`AMP99_0.1.0_x64_en-US.msi`)
-- NSIS setup EXE (`AMP99_0.1.0_x64-setup.exe`)
-
-CI verifies:
-
-1. release `amp99.exe` starts and stays alive;
-2. MSI installs into an isolated test directory;
-3. `.wsz` association is registered;
-4. installed AMP99 starts and stays alive;
-5. a secondary launch with a `.wsz` argument exits after handing the request to the existing instance;
-6. the primary instance remains alive during the handoff;
-7. MSI uninstall succeeds;
-8. both MSI and NSIS artifacts are produced.
-
-These are development/runtime artifacts. The intended Microsoft Store route is MSIX.
+1. release `amp99.exe` starts;
+2. one AMP99 process exposes **three separate visible top-level Windows windows**;
+3. their titles identify Main Player, Equalizer and Playlist Editor;
+4. MSI installs successfully;
+5. installed AMP99 again exposes the three native windows;
+6. `.wsz` is registered;
+7. secondary `.wsz` launch hands off to the existing process;
+8. the original process survives the handoff;
+9. MSI uninstalls successfully;
+10. MSI and NSIS artifacts are uploaded.
 
 ## Microsoft Store preflight
 
@@ -146,26 +179,27 @@ docs/RELEASE_QA.md
 PRIVACY.md
 ```
 
-The Store preflight pipeline uses a **development identity** to prove that the package can be built and unpacked structurally. It verifies the executable, requested identity and `.wsz` file association.
-
-The final Store package must use the exact **Identity Name**, **Publisher** and **Publisher display name** supplied by Microsoft Partner Center. Do not submit the CI development identity.
-
-See [`docs/MICROSOFT_STORE.md`](./docs/MICROSOFT_STORE.md) for the handoff and [`docs/RELEASE_QA.md`](./docs/RELEASE_QA.md) for release gates.
-
-## Privacy
-
-The current privacy policy is [`PRIVACY.md`](./PRIVACY.md).
-
-It documents local preferences, user-supplied skin handling and the current connected-service session behavior. Keep it synchronized with any future data-handling change.
+The CI MSIX uses a development identity for structural verification only. A final Store submission must use the exact Identity Name / Publisher values issued by Partner Center.
 
 ## Development
 
-### Frontend
+### Browser fallback
 
 ```bash
 npm install
 npm run dev
 ```
+
+This is useful for frontend work, but it is not authoritative for desktop window behavior.
+
+### Real desktop build
+
+```bash
+npm install
+npm run tauri:dev
+```
+
+For any windowing, docking, `.wsz` association, tray, DPI or multi-monitor change, **test the Tauri build**. A browser screenshot is not sufficient validation.
 
 Production frontend check:
 
@@ -173,91 +207,60 @@ Production frontend check:
 npm run build
 ```
 
-### Tauri desktop
-
-Install current Tauri Windows prerequisites, then:
-
-```bash
-npm install
-npm run tauri:dev
-```
-
-`npm run tauri:dev` and `npm run tauri:build` regenerate platform icons from `src-tauri/app-icon.svg` before native execution/build.
-
-### Store MSIX structural package
-
-After building the release executable on Windows:
-
-```powershell
-./scripts/build-store-msix.ps1 `
-  -IdentityName "<PARTNER_CENTER_IDENTITY_NAME>" `
-  -Publisher "<PARTNER_CENTER_PUBLISHER>" `
-  -PublisherDisplayName "<PUBLISHER_DISPLAY_NAME>" `
-  -Version "0.1.0.0"
-```
-
-See the Store guide before using a final identity.
-
 ## Repository architecture
 
 ```text
 src/
-├── components/       classic UI windows and controls
-├── hooks/            interaction / window behavior
-├── platform/         desktop/WebView platform integrations
-├── skins/            .wsz parsing, validation, geometry and rendering
-├── spotify/          Spotify auth, API, playlist and playback integration
-├── state/            shared player/window state
-├── types/            shared AMP99 domain types
-└── App.tsx           application composition
+├── components/       classic UI surfaces and controls
+├── hooks/            browser/fallback interaction hooks
+├── platform/         Windows/WebView integrations
+├── skins/            .wsz parsing, validation and rendering
+├── spotify/          Spotify auth/API/playback
+├── state/            Main-owned application/player state
+├── types/            shared domain types
+├── windowing/        native-window roles, bridge, sizing, snapping, persistence
+└── App.tsx           role-based composition
 
 src-tauri/
-├── app-icon.svg      scalable original AMP99 app icon
-├── src/              native Rust/Tauri integrations
-├── capabilities/     Tauri permissions
-└── tauri.conf.json   native desktop installer configuration
+├── app-icon.svg
+├── src/              Rust/Tauri integrations
+├── capabilities/
+└── tauri.conf.json   declares Main/EQ/Playlist native windows
 
-store/                Microsoft Store manifest/template assets
-scripts/              release/packaging scripts
+store/                Store manifest/template assets
+scripts/              packaging scripts
 docs/                 Store and release QA runbooks
 ```
 
-Keep Spotify network/API concerns out of visual/platform components and keep `.wsz` parsing/rendering out of Spotify code.
-
 ## Free / open-source foundations
 
-AMP99 uses free/open-source tooling wherever practical:
+- Tauri 2
+- React
+- TypeScript
+- Vite
+- JSZip
+- Tauri single-instance/global-shortcut plugins
+- GitHub Actions
+- browser APIs such as Canvas / ImageBitmap / BroadcastChannel / Media Session
 
-- Tauri 2;
-- official Tauri single-instance and global-shortcut plugins;
-- React;
-- TypeScript;
-- Vite;
-- JSZip;
-- GitHub Actions ecosystem;
-- browser platform APIs such as Canvas / ImageBitmap / Media Session.
+See [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md).
 
-See [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md) for tracked licenses/references.
+## What remains before public release
 
-## What remains before a public release
+Do not add feature creep to V1. The remaining gates are primarily:
 
-The non-Spotify Windows/platform foundation is intentionally close to frozen for V1. Do not keep piling on features.
-
-Remaining release gates are primarily:
-
-1. complete and physically test the installed-app Spotify flow;
-2. resolve all current Spotify public-distribution requirements;
-3. run the manual matrix in `docs/RELEASE_QA.md`, especially DPI/multi-monitor/media-key/skin compatibility;
-4. reserve **AMP99** in Partner Center and insert the real Store identity values;
-5. capture real final Store screenshots;
-6. pass final Store certification.
+1. finish and physically test installed-app Spotify flow;
+2. resolve Spotify public-distribution requirements;
+3. run `docs/RELEASE_QA.md` on real Windows hardware, including DPI/multiple monitors/media keys/legacy skins;
+4. reserve AMP99 in Partner Center and insert final Store identity values;
+5. capture release screenshots;
+6. pass Store certification.
 
 ## Legal / branding
 
-AMP99 is an independent project and is not affiliated with Winamp, Nullsoft, Spotify, or their respective owners.
+AMP99 is not affiliated with Winamp, Nullsoft, Spotify, or their owners.
 
-- Default AMP99 branding must remain original.
-- Do not add Winamp, Nullsoft or Spotify proprietary logos/assets without permission.
-- Do not bundle third-party legacy skins in the repository or installer.
-- Spotify production code must use documented official developer APIs/SDKs only.
-- No Spotify Client Secret belongs in a distributed desktop application.
+- Default AMP99 branding remains original.
+- Do not bundle proprietary logos/assets or third-party legacy skins.
+- Spotify production code must stay on documented official APIs/SDKs.
+- No Spotify Client Secret belongs in a distributed desktop app.
