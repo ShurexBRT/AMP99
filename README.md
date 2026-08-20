@@ -80,7 +80,7 @@ Windows CI explicitly enumerates Win32 top-level windows for the AMP99 process a
 | Privacy / release docs | **Implemented** | `PRIVACY.md`, `docs/` |
 | Spotify library/playlists | **Implemented foundation** | Browse, Liked Songs, search, create/edit |
 | Spotify Web Playback SDK | **Implemented in frontend** | Packaged WebView2/EME playback still needs physical proof |
-| Installed-app Spotify OAuth | **Not complete** | Explicit release gate; not part of current window refactor |
+| Installed-app Spotify OAuth | **Implemented / build-tested** | Native loopback PKCE flow is complete; physical account login still required |
 
 ## Classic player features
 
@@ -133,7 +133,8 @@ Spotify implementation remains isolated under `src/spotify/` and uses official d
 
 Already implemented in the codebase:
 
-- Authorization Code with PKCE browser/dev flow;
+- Authorization Code with PKCE for browser development;
+- native packaged-app PKCE flow using the system browser and `127.0.0.1` loopback callback;
 - token refresh/session persistence;
 - profile, playlists and Liked Songs;
 - playlist track loading and search;
@@ -142,14 +143,31 @@ Already implemented in the codebase:
 - AMP99 playback controls mapped to Spotify;
 - API restriction/error handling.
 
+The packaged desktop flow binds only to `127.0.0.1:43821`, accepts only `/callback`, times out after five minutes and never uses a Spotify Client Secret. The exact redirect URI used to start PKCE is persisted with the transaction and reused during code exchange.
+
 Still explicit release gates:
 
-- installed-app native OAuth callback;
+- physical Spotify Development Mode account login through the installed Windows build;
 - real Spotify Premium audio test inside packaged Tauri/WebView2 EME/DRM;
 - packaged token/session security review;
 - current Spotify public-distribution/quota requirements.
 
-The native multi-window refactor does not change Spotify API semantics. Main owns the existing Spotify implementation and auxiliary windows proxy commands to it.
+Main owns Spotify. EQ and Playlist proxy commands to it and never initialize duplicate Spotify playback sessions.
+
+### Spotify development app
+
+AMP99 contains its public Spotify Client ID as the default application identifier. A Client ID is not a secret. Contributors can override it with `VITE_SPOTIFY_CLIENT_ID` when deliberately testing another Spotify development application.
+
+The Spotify Developer Dashboard must allow both callbacks:
+
+```text
+http://127.0.0.1:5173/callback
+http://127.0.0.1:43821/callback
+```
+
+The first is the Vite/browser development callback. The second is the packaged AMP99 Windows loopback callback.
+
+No Spotify Client Secret belongs in AMP99 or in the repository.
 
 ## Windows CI
 
@@ -165,6 +183,8 @@ The Windows workflow builds MSI and NSIS installers and verifies:
 8. the original process survives the handoff;
 9. MSI uninstalls successfully;
 10. MSI and NSIS artifacts are uploaded.
+
+Native Spotify OAuth code is compiled and packaged by this gate. A real Spotify login remains a physical/manual QA gate because CI must not contain personal Spotify credentials.
 
 ## Microsoft Store preflight
 
@@ -199,7 +219,7 @@ npm install
 npm run tauri:dev
 ```
 
-For any windowing, docking, `.wsz` association, tray, DPI or multi-monitor change, **test the Tauri build**. A browser screenshot is not sufficient validation.
+For any windowing, docking, `.wsz` association, tray, DPI, OAuth or multi-monitor change, **test the Tauri build**. A browser screenshot is not sufficient validation.
 
 Production frontend check:
 
@@ -213,7 +233,7 @@ npm run build
 src/
 ├── components/       classic UI surfaces and controls
 ├── hooks/            browser/fallback interaction hooks
-├── platform/         Windows/WebView integrations
+├── platform/         Windows/WebView integrations, including native Spotify OAuth bridge
 ├── skins/            .wsz parsing, validation and rendering
 ├── spotify/          Spotify auth/API/playback
 ├── state/            Main-owned application/player state
@@ -223,7 +243,7 @@ src/
 
 src-tauri/
 ├── app-icon.svg
-├── src/              Rust/Tauri integrations
+├── src/              Rust/Tauri integrations and loopback listener
 ├── capabilities/
 └── tauri.conf.json   declares Main/EQ/Playlist native windows
 
@@ -249,7 +269,7 @@ See [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md).
 
 Do not add feature creep to V1. The remaining gates are primarily:
 
-1. finish and physically test installed-app Spotify flow;
+1. physically test native Spotify login and Web Playback/EME on real Windows hardware;
 2. resolve Spotify public-distribution requirements;
 3. run `docs/RELEASE_QA.md` on real Windows hardware, including DPI/multiple monitors/media keys/legacy skins;
 4. reserve AMP99 in Partner Center and insert final Store identity values;

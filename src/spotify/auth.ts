@@ -8,6 +8,7 @@ import { SpotifyAuthError, type SpotifySession } from "./types";
 const SESSION_STORAGE_KEY = "amp99.spotify.session.v1";
 const PKCE_VERIFIER_KEY = "amp99.spotify.pkceVerifier.v1";
 const OAUTH_STATE_KEY = "amp99.spotify.oauthState.v1";
+const OAUTH_REDIRECT_URI_KEY = "amp99.spotify.oauthRedirectUri.v1";
 const ACCESS_TOKEN_SAFETY_WINDOW_MS = 60_000;
 
 let refreshInFlight: Promise<SpotifySession> | null = null;
@@ -119,13 +120,17 @@ export function clearSpotifyAuthorizationTransaction(): void {
     const storage = getStorage();
     storage.removeItem(PKCE_VERIFIER_KEY);
     storage.removeItem(OAUTH_STATE_KEY);
+    storage.removeItem(OAUTH_REDIRECT_URI_KEY);
   } catch {
     // Nothing else to clean up when storage is unavailable.
   }
 }
 
-export async function createSpotifyAuthorizationUrl(): Promise<string> {
+export async function createSpotifyAuthorizationUrl(options?: {
+  redirectUri?: string;
+}): Promise<string> {
   const config = getSpotifyConfig();
+  const redirectUri = options?.redirectUri?.trim() || config.redirectUri;
   const verifier = createRandomString(64);
   const state = createRandomString(32);
   const challenge = await createCodeChallenge(verifier);
@@ -133,12 +138,13 @@ export async function createSpotifyAuthorizationUrl(): Promise<string> {
 
   storage.setItem(PKCE_VERIFIER_KEY, verifier);
   storage.setItem(OAUTH_STATE_KEY, state);
+  storage.setItem(OAUTH_REDIRECT_URI_KEY, redirectUri);
 
   const url = new URL(SPOTIFY_AUTHORIZE_URL);
   url.search = new URLSearchParams({
     client_id: config.clientId,
     response_type: "code",
-    redirect_uri: config.redirectUri,
+    redirect_uri: redirectUri,
     code_challenge_method: "S256",
     code_challenge: challenge,
     state,
@@ -156,6 +162,7 @@ export async function exchangeSpotifyAuthorizationCode(
   const storage = getStorage();
   const verifier = storage.getItem(PKCE_VERIFIER_KEY);
   const expectedState = storage.getItem(OAUTH_STATE_KEY);
+  const redirectUri = storage.getItem(OAUTH_REDIRECT_URI_KEY) || config.redirectUri;
 
   if (!verifier || !expectedState) {
     throw new SpotifyAuthError(
@@ -180,7 +187,7 @@ export async function exchangeSpotifyAuthorizationCode(
     body: new URLSearchParams({
       grant_type: "authorization_code",
       code,
-      redirect_uri: config.redirectUri,
+      redirect_uri: redirectUri,
       client_id: config.clientId,
       code_verifier: verifier,
     }),
