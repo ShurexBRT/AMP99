@@ -1,0 +1,109 @@
+name: Publish Windows alpha release
+
+on:
+  push:
+    tags:
+      - 'v*-alpha.*'
+
+permissions:
+  contents: write
+
+jobs:
+  windows-alpha-release:
+    runs-on: windows-2025
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Verify tag matches AMP99 application version
+        shell: pwsh
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          if (-not $tag.StartsWith('v')) {
+            throw "AMP99 release tag must start with v. Got: $tag"
+          }
+          $tagVersion = $tag.Substring(1)
+          $packageVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $tauriVersion = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          if ($tagVersion -ne $packageVersion) {
+            throw "Tag version $tagVersion does not match package.json $packageVersion"
+          }
+          if ($tagVersion -ne $tauriVersion) {
+            throw "Tag version $tagVersion does not match tauri.conf.json $tauriVersion"
+          }
+          if ($tagVersion -notmatch '-alpha\.') {
+            throw "This workflow only publishes alpha tags. Got: $tagVersion"
+          }
+          npm run version:check
+
+      - name: Generate AMP99 platform icons
+        run: npm run tauri:icon
+
+      - name: Run frontend production build
+        run: npm run build
+
+      - name: Run Rust unit tests
+        working-directory: src-tauri
+        run: cargo test --locked
+
+      - name: Build MSI and NSIS installers
+        shell: pwsh
+        run: |
+          & npm.cmd run tauri -- build --bundles msi,nsis
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Smoke-test release executable
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path 'src-tauri/target/release/amp99.exe'
+          $process = Start-Process -FilePath $exe -PassThru
+          Start-Sleep -Seconds 8
+          $process.Refresh()
+          if ($process.HasExited) {
+            throw "AMP99 release executable exited during startup smoke test with code $($process.ExitCode)."
+          }
+          Stop-Process -Id $process.Id -Force
+
+      - name: Create SHA256 checksums
+        shell: pwsh
+        run: |
+          $msi = Get-ChildItem 'src-tauri/target/release/bundle/msi/*.msi' | Select-Object -First 1
+          $setup = Get-ChildItem 'src-tauri/target/release/bundle/nsis/*-setup.exe' | Select-Object -First 1
+          if (-not $msi -or -not $setup) { throw 'AMP99 release installers were not produced.' }
+          @(
+            "$(Get-FileHash $msi.FullName -Algorithm SHA256 | Select-Object -ExpandProperty Hash)  $($msi.Name)",
+            "$(Get-FileHash $setup.FullName -Algorithm SHA256 | Select-Object -ExpandProperty Hash)  $($setup.Name)"
+          ) | Set-Content SHA256SUMS.txt
+
+      - name: Publish GitHub prerelease
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = $env:GITHUB_REF_NAME.Substring(1)
+          $msi = Get-ChildItem 'src-tauri/target/release/bundle/msi/*.msi' | Select-Object -First 1
+          $setup = Get-ChildItem 'src-tauri/target/release/bundle/nsis/*-setup.exe' | Select-Object -First 1
+          gh release create $env:GITHUB_REF_NAME `
+            --repo $env:GITHUB_REPOSITORY `
+            --title "AMP99 $version" `
+            --prerelease `
+            --generate-notes `
+            $msi.FullName `
+            $setup.FullName `
+            'SHA256SUMS.txt'
