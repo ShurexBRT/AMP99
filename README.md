@@ -8,6 +8,24 @@ The product is **not** a modern music dashboard wearing a retro theme. The packa
 
 > **AI contributors:** read [`AGENTS.md`](./AGENTS.md) before changing code. Task claiming, branch ownership and subsystem boundaries are mandatory.
 
+## Current release track
+
+- App version: **0.2.0-alpha.1**
+- Phase: **closed alpha / physical QA**
+- MSIX numeric package version: **0.2.0.1**
+- Version consistency is checked by `npm run version:check` and is part of the normal production build.
+
+Planned progression:
+
+```text
+0.2.x-alpha  -> bug fixing and owner QA
+0.3.x-beta   -> small external tester group
+0.9.x-rc     -> Store release candidate
+1.0.0        -> public release
+```
+
+Prerelease builds must use a numeric suffix such as `alpha.1`, because AMP99 maps that final numeric identifier to the fourth numeric MSIX revision component.
+
 ## Brand
 
 - Product: **AMP99**
@@ -42,9 +60,11 @@ The large shared-window layout may remain only as a browser-development fallback
 
 ### Native window behavior
 
-- each window moves independently as an OS window;
+- each auxiliary window can move independently as an OS window;
 - real native window dragging is used instead of moving a fake `<div>`;
 - edge snapping/docking is calculated from native outer window positions/sizes;
+- dragging Main moves the complete currently-connected docked window group, including transitive Main -> EQ -> Playlist chains;
+- pulling EQ or Playlist away immediately returns that auxiliary window to independent movement;
 - physical window positions persist;
 - EQ and Playlist can be independently shown/hidden;
 - Main `EQ` / `PL` buttons control the real auxiliary windows;
@@ -61,13 +81,14 @@ Windows CI explicitly enumerates Win32 top-level windows for the AMP99 process a
 
 | Area | Status | Notes |
 |---|---|---|
-| Three native Tauri windows | **Implemented / CI-gated** | Main, EQ and Playlist are separate OS windows |
-| Native dragging / snapping | **Implemented foundation** | Physical positions and edge snapping |
+| Three native Tauri windows | **Implemented / CI-gated / physically tested** | Main, EQ and Playlist are separate OS windows |
+| Native dragging / snapping | **Implemented / physically tested** | Independent aux movement + Main-root dock group movement |
 | Position persistence | **Implemented** | Native window positions are remembered |
+| Playlist resize | **Implemented / physically tested** | Mouse resize with persisted dimensions |
 | Shade / active states | **Implemented foundation** | Native resize + classic skin states |
 | 1× / 2× | **Implemented foundation** | Native dimensions + pixel scaling |
-| `.wsz` loading | **Implemented / hardened** | Validation, limits, path-traversal protection |
-| `.wsz` Main rendering | **Implemented** | Classic Main sheets and control states |
+| `.wsz` loading | **Implemented / hardened / physically tested** | Validation, limits, path-traversal protection |
+| `.wsz` Main rendering | **Implemented / physically tested** | Classic Main sheets and control states |
 | `.wsz` EQ rendering | **Implemented foundation** | `EQMAIN` / `EQ_EX` geometry |
 | `.wsz` Playlist rendering | **Implemented foundation** | `PLEDIT` chrome + `PLEDIT.TXT` colors |
 | Cross-window skin sync | **Implemented** | Same skin is applied across native webviews |
@@ -75,12 +96,15 @@ Windows CI explicitly enumerates Win32 top-level windows for the AMP99 process a
 | System tray | **Implemented** | Show, Always on Top, Quit |
 | Hardware media keys | **Implemented best-effort** | Conflicts never block startup |
 | Media Session bridge | **Implemented best-effort** | Used where WebView2 exposes it |
+| Realtime playback clock | **Implemented / physically tested** | Interpolated while playing |
+| Realtime volume | **Implemented / physically tested** | Applies during drag, not on release |
+| Queue auto-next | **Implemented / physically tested** | AMP99 advances at track end |
 | MSI / NSIS | **Implemented / smoke-tested** | Build, install, launch, handoff, uninstall |
 | Store MSIX preflight | **Implemented** | MakeAppx pack/unpack structural verification |
 | Privacy / release docs | **Implemented** | `PRIVACY.md`, `docs/` |
-| Spotify library/playlists | **Implemented foundation** | Browse, Liked Songs, search, create/edit |
-| Spotify Web Playback SDK | **Implemented in frontend** | Packaged WebView2/EME playback still needs physical proof |
-| Installed-app Spotify OAuth | **Implemented / build-tested** | Native loopback PKCE flow is complete; physical account login still required |
+| Spotify library/playlists | **Implemented / physically tested** | Browse, Liked Songs, search, create/edit |
+| Spotify Web Playback SDK | **Implemented / physically tested on Windows** | Packaged WebView2 playback works in owner QA |
+| Installed-app Spotify OAuth | **Implemented / physically tested** | Native loopback PKCE login works in packaged build |
 
 ## Classic player features
 
@@ -90,20 +114,26 @@ AMP99 currently includes:
 - Equalizer;
 - Playlist Editor;
 - play / pause / stop / previous / next;
+- realtime elapsed-time display;
 - seek;
-- volume;
+- realtime volume;
 - balance UI;
 - shuffle / repeat;
+- queue auto-advance;
 - classic Playlist Editor menus;
+- resizable Playlist Editor;
 - shade mode;
 - active/inactive titlebars;
 - native snapping/docking;
+- Main-root movement for connected docked window groups;
 - 1× / 2× scaling foundation;
 - tray + Always on Top;
 - hardware media-key bridge;
 - Windows `.wsz` association.
 
 The Equalizer is intentionally visual-only for Spotify playback. AMP99 does not DSP or alter Spotify audio.
+
+The spectrum/VU-style display is a deterministic playback-reactive visualization. Spotify Web Playback SDK does not expose raw PCM/FFT data, so AMP99 intentionally does not use undocumented audio-interception hacks.
 
 ## Legacy `.wsz` skins
 
@@ -131,7 +161,7 @@ AMP99 does **not** ship third-party `.wsz` skins. Users supply their own files.
 
 Spotify implementation remains isolated under `src/spotify/` and uses official developer APIs/SDKs only.
 
-Already implemented in the codebase:
+Already implemented and physically exercised in the packaged Windows app:
 
 - Authorization Code with PKCE for browser development;
 - native packaged-app PKCE flow using the system browser and `127.0.0.1` loopback callback;
@@ -141,16 +171,16 @@ Already implemented in the codebase:
 - create/add/remove/reorder playlist operations;
 - official Web Playback SDK / Spotify Connect device path;
 - AMP99 playback controls mapped to Spotify;
+- realtime playback clock/volume and queue auto-next;
 - API restriction/error handling.
 
 The packaged desktop flow binds only to `127.0.0.1:43821`, accepts only `/callback`, times out after five minutes and never uses a Spotify Client Secret. The exact redirect URI used to start PKCE is persisted with the transaction and reused during code exchange.
 
 Still explicit release gates:
 
-- physical Spotify Development Mode account login through the installed Windows build;
-- real Spotify Premium audio test inside packaged Tauri/WebView2 EME/DRM;
 - packaged token/session security review;
-- current Spotify public-distribution/quota requirements.
+- current Spotify public-distribution/quota requirements;
+- broader tester coverage across Windows machines before public release.
 
 Main owns Spotify. EQ and Playlist proxy commands to it and never initialize duplicate Spotify playback sessions.
 
@@ -184,7 +214,7 @@ The Windows workflow builds MSI and NSIS installers and verifies:
 9. MSI uninstalls successfully;
 10. MSI and NSIS artifacts are uploaded.
 
-Native Spotify OAuth code is compiled and packaged by this gate. A real Spotify login remains a physical/manual QA gate because CI must not contain personal Spotify credentials.
+Native Spotify OAuth code is compiled and packaged by this gate. Real account/audio behavior is additionally covered by physical owner QA because CI must not contain personal Spotify credentials.
 
 ## Microsoft Store preflight
 
@@ -227,11 +257,17 @@ Production frontend check:
 npm run build
 ```
 
+Version consistency check:
+
+```bash
+npm run version:check
+```
+
 ## Repository architecture
 
 ```text
 src/
-├── components/       classic UI surfaces and controls
+├── components/       classic player UI surfaces and controls
 ├── hooks/            browser/fallback interaction hooks
 ├── platform/         Windows/WebView integrations, including native Spotify OAuth bridge
 ├── skins/            .wsz parsing, validation and rendering
@@ -248,7 +284,7 @@ src-tauri/
 └── tauri.conf.json   declares Main/EQ/Playlist native windows
 
 store/                Store manifest/template assets
-scripts/              packaging scripts
+scripts/              packaging/version scripts
 docs/                 Store and release QA runbooks
 ```
 
@@ -269,12 +305,15 @@ See [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md).
 
 Do not add feature creep to V1. The remaining gates are primarily:
 
-1. physically test native Spotify login and Web Playback/EME on real Windows hardware;
-2. resolve Spotify public-distribution requirements;
-3. run `docs/RELEASE_QA.md` on real Windows hardware, including DPI/multiple monitors/media keys/legacy skins;
-4. reserve AMP99 in Partner Center and insert final Store identity values;
-5. capture release screenshots;
-6. pass Store certification.
+1. continue owner QA on real Windows hardware across DPI/scaling states and a large set of legacy skins;
+2. add a compact Preferences dialog and GitHub/MSI update-check flow;
+3. run a small closed external tester round after those changes are packaged;
+4. resolve Spotify public-distribution requirements;
+5. complete legal/branding/attribution review before Store submission;
+6. run `docs/RELEASE_QA.md` across the tester pool;
+7. reserve AMP99 in Partner Center and insert final Store identity values;
+8. capture release screenshots;
+9. pass Store certification.
 
 ## Legal / branding
 
