@@ -94,14 +94,12 @@ export function useSkinManager() {
   );
 
   const loadSkinPath = useCallback(
-    async (path: string) => {
+    async (path: string, broadcast = false) => {
       const bytes = await invoke<number[]>("read_skin_file", { path });
       const file = new File([new Uint8Array(bytes)], filenameFromPath(path), {
         type: "application/zip",
       });
-      // The native file-association event is emitted to every AMP99 webview already,
-      // so do not rebroadcast and create duplicate decoding work.
-      return applySkin(file, false);
+      return applySkin(file, broadcast);
     },
     [applySkin],
   );
@@ -134,7 +132,9 @@ export function useSkinManager() {
     void (async () => {
       unlisten = await listen<string>(OPEN_SKIN_EVENT, (event) => {
         if (!disposed && event.payload) {
-          void loadSkinPath(event.payload).catch((error) => {
+          // Secondary .wsz launches emit this event to every webview, so each window
+          // can decode locally without another BroadcastChannel fan-out.
+          void loadSkinPath(event.payload, false).catch((error) => {
             console.error("AMP99 could not open associated skin:", error);
           });
         }
@@ -147,7 +147,9 @@ export function useSkinManager() {
 
       const pending = await invoke<string | null>("take_pending_skin");
       if (!disposed && pending) {
-        await loadSkinPath(pending);
+        // On the very first process launch only one webview can consume PendingSkin.
+        // Re-broadcast that decoded file so Main/EQ/Playlist all start in the same skin.
+        await loadSkinPath(pending, true);
       }
     })().catch((error) => {
       console.error("AMP99 skin file-association setup failed:", error);
