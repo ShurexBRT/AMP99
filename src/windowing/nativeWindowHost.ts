@@ -5,6 +5,7 @@ import {
   getCurrentWebviewWindow,
   WebviewWindow,
 } from "@tauri-apps/api/webviewWindow";
+import { getPreferencesSnapshot } from "../preferences/preferencesStore";
 import type { Amp99NativeWindowRole } from "./bridge";
 
 const POSITION_STORAGE_KEY = "amp99.nativeWindowPositions.v1";
@@ -52,10 +53,11 @@ function isAmp99NativeWindowRole(label: string): label is Amp99NativeWindowRole 
   return label === "main" || label === "equalizer" || label === "playlist";
 }
 
-export function currentNativeWindowRole(): Amp99NativeWindowRole | "browser" {
+export function currentNativeWindowRole(): Amp99NativeWindowRole | "preferences" | "browser" {
   if (!isTauri()) return "browser";
   const label = getCurrentWebviewWindow().label;
-  return isAmp99NativeWindowRole(label) ? label : "browser";
+  if (isAmp99NativeWindowRole(label)) return label;
+  return label === "preferences" ? "preferences" : "browser";
 }
 
 export function isNativeHostFor(role: Amp99NativeWindowRole): boolean {
@@ -71,12 +73,22 @@ function readSavedPositions(): SavedPositions {
 }
 
 function savePosition(role: Amp99NativeWindowRole, position: PhysicalPosition): void {
+  if (!getPreferencesSnapshot().rememberWindowPositions) return;
   try {
     const current = readSavedPositions();
     current[role] = { x: position.x, y: position.y };
     localStorage.setItem(POSITION_STORAGE_KEY, JSON.stringify(current));
   } catch {
     // Position persistence is a convenience; never block window movement for it.
+  }
+}
+
+export function forgetNativeWindowPositions(): void {
+  try {
+    localStorage.removeItem(POSITION_STORAGE_KEY);
+    localStorage.removeItem("amp99.windowPositions.v1");
+  } catch {
+    // Forgetting positions is best-effort and never blocks the player.
   }
 }
 
@@ -125,14 +137,28 @@ function saveAuxVisibility(
   }
 }
 
-async function restoreAuxVisibility(): Promise<void> {
+async function restoreAuxVisibility(startup = false): Promise<void> {
   if (!isTauri()) return;
   const saved = readAuxVisibility();
+  const preferences = getPreferencesSnapshot();
   for (const role of ["equalizer", "playlist"] as const) {
     const target = await WebviewWindow.getByLabel(role);
     if (!target) continue;
-    if (saved[role]) await target.show();
+    const startupEnabled =
+      role === "equalizer"
+        ? preferences.restoreEqualizerOnStartup
+        : preferences.restorePlaylistOnStartup;
+    const visible = startup ? startupEnabled && saved[role] : saved[role];
+    if (visible) await target.show();
     else await target.hide();
+  }
+}
+
+async function hidePlayerWindowGroup(): Promise<void> {
+  if (!isTauri()) return;
+  for (const role of ["main", "equalizer", "playlist"] as const) {
+    const target = await WebviewWindow.getByLabel(role);
+    if (target) await target.hide();
   }
 }
 
@@ -403,7 +429,10 @@ export async function installNativeWindowHost(
   document.documentElement.dataset.windowShaded = "false";
 
   const current = getCurrentWebviewWindow();
-  const saved = readSavedPositions()[role];
+  const preferences = getPreferencesSnapshot();
+  const saved = preferences.rememberWindowPositions
+    ? readSavedPositions()[role]
+    : undefined;
   if (saved) {
     await current.setPosition(new PhysicalPosition(saved.x, saved.y));
   }
@@ -420,11 +449,12 @@ export async function installNativeWindowHost(
   let lastKnownPosition = await current.outerPosition();
 
   const onMainFocus = () => {
-    if (role === "main") void restoreAuxVisibility();
+    if (role === "main") void restoreAuxVisibility(false);
   };
   if (role === "main") {
     window.addEventListener("focus", onMainFocus);
-    await restoreAuxVisibility();
+    await restoreAuxVisibility(true);
+    if (preferences.startMinimized) await hidePlayerWindowGroup();
   }
 
   let snapping = false;
