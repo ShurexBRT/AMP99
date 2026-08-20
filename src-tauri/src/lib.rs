@@ -94,11 +94,14 @@ fn ensure_preferences_window(app: &tauri::AppHandle) -> Result<(), String> {
 }
 
 fn focus_preferences(app: &tauri::AppHandle) {
-    let _ = ensure_preferences_window(app);
+    let app = app.clone();
+    thread::spawn(move || {
+        let _ = ensure_preferences_window(&app);
+    });
 }
 
 #[tauri::command]
-fn show_preferences_window(app: tauri::AppHandle) -> Result<(), String> {
+async fn show_preferences_window(app: tauri::AppHandle) -> Result<(), String> {
     ensure_preferences_window(&app)
 }
 

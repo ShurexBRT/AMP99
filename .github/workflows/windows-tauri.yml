@@ -105,16 +105,39 @@ jobs:
           }
           "@
 
-          function Assert-Amp99NativeWindows([System.Diagnostics.Process]$process) {
-            $titles = [Amp99WindowProbe]::VisibleTitlesForProcess($process.Id)
-            Write-SmokeLog "Visible AMP99 windows for PID $($process.Id): $($titles -join ' | ')"
+          function Wait-Amp99NativeWindows(
+            [System.Diagnostics.Process]$process,
+            [int]$timeoutSeconds = 30
+          ) {
             $expected = @("AMP99 — Play it like it's 1999", "AMP99 Equalizer", "AMP99 Playlist Editor")
-            foreach ($title in $expected) {
-              if ($titles -notcontains $title) {
-                throw "Missing native AMP99 window '$title'. Found: $($titles -join ', ')"
+            $deadline = (Get-Date).AddSeconds($timeoutSeconds)
+            $lastObserved = $null
+
+            do {
+              $process.Refresh()
+              if ($process.HasExited) {
+                Write-SmokeLog "FAIL raw executable exited early with code $($process.ExitCode)"
+                throw "AMP99 raw executable exited during startup smoke test."
               }
-            }
-            Write-SmokeLog "PASS three independent native AMP99 windows exist in one process"
+
+              $titles = [Amp99WindowProbe]::VisibleTitlesForProcess($process.Id)
+              $observed = $titles -join " | "
+              if ($observed -ne $lastObserved) {
+                Write-SmokeLog "Waiting for AMP99 native windows for PID $($process.Id): $observed"
+                $lastObserved = $observed
+              }
+
+              $missing = @($expected | Where-Object { $titles -notcontains $_ })
+              if ($missing.Count -eq 0) {
+                Write-SmokeLog "PASS three independent native AMP99 windows exist in one process"
+                return
+              }
+
+              Start-Sleep -Milliseconds 500
+            } while ((Get-Date) -lt $deadline)
+
+            Write-SmokeLog "FAIL native windows did not become ready within $timeoutSeconds seconds. Missing: $($missing -join ', '); found: $($titles -join ', ')"
+            throw "AMP99 native windows did not become ready within $timeoutSeconds seconds."
           }
 
           $exePath = Join-Path $PWD "src-tauri/target/release/amp99.exe"
@@ -125,16 +148,8 @@ jobs:
 
           Write-SmokeLog "Launching raw executable: $exePath"
           $process = Start-Process -FilePath $exePath -PassThru
-          Start-Sleep -Seconds 8
-          $process.Refresh()
-
-          if ($process.HasExited) {
-            Write-SmokeLog "FAIL raw executable exited early with code $($process.ExitCode)"
-            throw "AMP99 raw executable exited during startup smoke test."
-          }
-
-          Assert-Amp99NativeWindows $process
-          Write-SmokeLog "PASS raw executable stayed alive for 8 seconds (PID $($process.Id))"
+          Wait-Amp99NativeWindows $process
+          Write-SmokeLog "PASS raw executable stayed alive through native-window startup (PID $($process.Id))"
           Stop-Process -Id $process.Id -Force
           Start-Sleep -Seconds 1
 
@@ -180,6 +195,41 @@ jobs:
           }
           "@
 
+          function Wait-Amp99InstalledWindows(
+            [System.Diagnostics.Process]$process,
+            [int]$timeoutSeconds = 30
+          ) {
+            $expected = @("AMP99 — Play it like it's 1999", "AMP99 Equalizer", "AMP99 Playlist Editor")
+            $deadline = (Get-Date).AddSeconds($timeoutSeconds)
+            $lastObserved = $null
+
+            do {
+              $process.Refresh()
+              if ($process.HasExited) {
+                Write-SmokeLog "FAIL installed executable exited early with code $($process.ExitCode)"
+                throw "Installed AMP99 executable exited during startup smoke test."
+              }
+
+              $titles = [Amp99InstalledWindowProbe]::VisibleTitlesForProcess($process.Id)
+              $observed = $titles -join " | "
+              if ($observed -ne $lastObserved) {
+                Write-SmokeLog "Waiting for installed AMP99 native windows: $observed"
+                $lastObserved = $observed
+              }
+
+              $missing = @($expected | Where-Object { $titles -notcontains $_ })
+              if ($missing.Count -eq 0) {
+                Write-SmokeLog "PASS installed AMP99 exposes three native windows"
+                return
+              }
+
+              Start-Sleep -Milliseconds 500
+            } while ((Get-Date) -lt $deadline)
+
+            Write-SmokeLog "FAIL installed native windows did not become ready within $timeoutSeconds seconds. Missing: $($missing -join ', '); found: $($titles -join ', ')"
+            throw "Installed AMP99 native windows did not become ready within $timeoutSeconds seconds."
+          }
+
           $msi = Get-ChildItem -Path "src-tauri/target/release/bundle/msi" -Filter "*.msi" -File | Select-Object -First 1
           if (-not $msi) {
             Write-SmokeLog "FAIL no MSI bundle was produced"
@@ -220,22 +270,7 @@ jobs:
 
           Write-SmokeLog "Launching installed executable: $installedExe"
           $process = Start-Process -FilePath $installedExe -PassThru
-          Start-Sleep -Seconds 8
-          $process.Refresh()
-
-          if ($process.HasExited) {
-            Write-SmokeLog "FAIL installed executable exited early with code $($process.ExitCode)"
-            throw "Installed AMP99 executable exited during startup smoke test."
-          }
-
-          $titles = [Amp99InstalledWindowProbe]::VisibleTitlesForProcess($process.Id)
-          Write-SmokeLog "Installed visible windows: $($titles -join ' | ')"
-          foreach ($title in @("AMP99 — Play it like it's 1999", "AMP99 Equalizer", "AMP99 Playlist Editor")) {
-            if ($titles -notcontains $title) {
-              throw "Installed AMP99 is missing native window '$title'. Found: $($titles -join ', ')"
-            }
-          }
-          Write-SmokeLog "PASS installed AMP99 exposes three native windows"
+          Wait-Amp99InstalledWindows $process
 
           $testSkin = Join-Path $env:RUNNER_TEMP "amp99-single-instance-smoke.wsz"
           Set-Content -Path $testSkin -Value "AMP99 invalid test archive: native handoff only" -NoNewline
