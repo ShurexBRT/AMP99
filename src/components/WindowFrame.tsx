@@ -10,6 +10,13 @@ import { useDraggableWindow } from "../hooks/useDraggableWindow";
 import { hideHostWindowToTray, minimizeHostWindow } from "../platform/windowControls";
 import { useCurrentSkin } from "../skins/useSkinManager";
 import type { WindowId, WindowPosition } from "../types/player";
+import { requestMain } from "../windowing/bridge";
+import {
+  applyNativeShade,
+  hideCurrentNativeWindow,
+  isNativeHostFor,
+  startNativeWindowDrag,
+} from "../windowing/nativeWindowHost";
 
 const WINDOW_FOCUS_EVENT = "amp99-window-focus";
 const WINDOW_CLOSE_EVENT = "amp99-window-close";
@@ -65,6 +72,7 @@ export function WindowFrame({
   children,
 }: Props) {
   const resolvedWindowId = windowId ?? inferWindowId(title);
+  const nativeHost = isNativeHostFor(resolvedWindowId);
   const sharedSkin = useCurrentSkin();
   const sharedSprite = (name: string) => sharedSkin?.sprites.get(name) ?? null;
   const [active, setActive] = useState(resolvedWindowId === "main");
@@ -80,15 +88,31 @@ export function WindowFrame({
   });
 
   useEffect(() => {
+    if (nativeHost) {
+      const onFocus = () => setActive(true);
+      const onBlur = () => setActive(false);
+      setActive(document.hasFocus());
+      window.addEventListener("focus", onFocus);
+      window.addEventListener("blur", onBlur);
+      return () => {
+        window.removeEventListener("focus", onFocus);
+        window.removeEventListener("blur", onBlur);
+      };
+    }
+
     const listener = (event: Event) => {
       const focusedId = (event as CustomEvent<WindowId>).detail;
       setActive(focusedId === resolvedWindowId);
     };
     window.addEventListener(WINDOW_FOCUS_EVENT, listener);
     return () => window.removeEventListener(WINDOW_FOCUS_EVENT, listener);
-  }, [resolvedWindowId]);
+  }, [nativeHost, resolvedWindowId]);
 
   const activate = () => {
+    if (nativeHost) {
+      setActive(true);
+      return;
+    }
     window.dispatchEvent(
       new CustomEvent<WindowId>(WINDOW_FOCUS_EVENT, { detail: resolvedWindowId }),
     );
@@ -96,7 +120,21 @@ export function WindowFrame({
 
   const onTitlePointerDown = (event: ReactPointerEvent<HTMLElement>) => {
     activate();
+    if (nativeHost) {
+      event.preventDefault();
+      void startNativeWindowDrag(resolvedWindowId);
+      return;
+    }
     drag.onPointerDown(event);
+  };
+
+  const toggleShade = () => {
+    if (!shadeable) return;
+    setShaded((current) => {
+      const next = !current;
+      if (nativeHost) void applyNativeShade(resolvedWindowId, next);
+      return next;
+    });
   };
 
   let sharedBackground: string | null = null;
@@ -147,8 +185,8 @@ export function WindowFrame({
   const colors = sharedSkin?.playlistColors;
 
   const style: WindowStyle = {
-    left: position.x,
-    top: position.y,
+    left: nativeHost ? 0 : position.x,
+    top: nativeHost ? 0 : position.y,
     width,
     height: renderedHeight,
     backgroundImage: displayedBackground ? `url(${displayedBackground})` : undefined,
@@ -199,7 +237,7 @@ export function WindowFrame({
 
   const onControl = (kind: ControlKind) => {
     if (kind === "shade") {
-      if (shadeable) setShaded((value) => !value);
+      toggleShade();
       return;
     }
 
@@ -211,6 +249,15 @@ export function WindowFrame({
     if (kind === "close") {
       if (resolvedWindowId === "main") {
         void hideHostWindowToTray();
+      } else if (nativeHost) {
+        void hideCurrentNativeWindow();
+        void requestMain(
+          resolvedWindowId,
+          resolvedWindowId === "equalizer"
+            ? "setEqualizerVisible"
+            : "setPlaylistVisible",
+          false,
+        ).catch(() => undefined);
       } else {
         window.dispatchEvent(
           new CustomEvent<WindowId>(WINDOW_CLOSE_EVENT, { detail: resolvedWindowId }),
@@ -224,7 +271,7 @@ export function WindowFrame({
 
   return (
     <section
-      className={`amp-window ${hasSkinBackground ? "legacy-skinned-window" : ""} ${shaded ? "amp-window-shaded" : ""} ${active ? "amp-window-active" : "amp-window-inactive"} ${className}`}
+      className={`amp-window ${nativeHost ? "native-host-window" : ""} ${hasSkinBackground ? "legacy-skinned-window" : ""} ${shaded ? "amp-window-shaded" : ""} ${active ? "amp-window-active" : "amp-window-inactive"} ${className}`}
       style={style}
       aria-label={title}
       data-window-id={resolvedWindowId}
@@ -244,9 +291,9 @@ export function WindowFrame({
               : undefined,
         }}
         onPointerDown={onTitlePointerDown}
-        onPointerMove={drag.onPointerMove}
-        onPointerUp={drag.onPointerUp}
-        onDoubleClick={() => shadeable && setShaded((value) => !value)}
+        onPointerMove={nativeHost ? undefined : drag.onPointerMove}
+        onPointerUp={nativeHost ? undefined : drag.onPointerUp}
+        onDoubleClick={toggleShade}
         title={shadeable ? "Double-click to toggle shade mode" : undefined}
       >
         <span className="amp-titlebar-grip" aria-hidden="true" />
