@@ -61,6 +61,23 @@
         "backgroundColor": "#090b0e",
         "minWidth": 275,
         "minHeight": 145
+      },
+      {
+        "label": "preferences",
+        "title": "AMP99 Preferences",
+        "width": 390,
+        "height": 475,
+        "x": 260,
+        "y": 180,
+        "visible": false,
+        "resizable": false,
+        "maximizable": false,
+        "minimizable": false,
+        "fullscreen": false,
+        "decorations": false,
+        "shadow": true,
+        "skipTaskbar": true,
+        "backgroundColor": "#15171a"
       }
     ],
     "security": {

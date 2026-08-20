@@ -16,7 +16,7 @@ use std::{
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Emitter, Manager, WebviewUrl, WebviewWindowBuilder,
+    Emitter, Manager,
 };
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use update_links::open_official_amp99_release;
@@ -63,32 +63,15 @@ fn focus_main(app: &tauri::AppHandle) {
 }
 
 fn ensure_preferences_window(app: &tauri::AppHandle) -> Result<(), String> {
-    if let Some(window) = app.get_webview_window("preferences") {
-        window
-            .show()
-            .map_err(|error| format!("Could not show AMP99 Preferences: {error}"))?;
-        let _ = window.set_focus();
-        return Ok(());
-    }
+    // Preferences is pre-created hidden in tauri.conf.json. Creating a WebView2 window
+    // from this synchronous command/tray event path can deadlock on Windows.
+    let window = app
+        .get_webview_window("preferences")
+        .ok_or_else(|| "AMP99 Preferences window is unavailable.".to_string())?;
 
-    let window = WebviewWindowBuilder::new(
-        app,
-        "preferences",
-        WebviewUrl::App("index.html".into()),
-    )
-    .title("AMP99 Preferences")
-    .inner_size(390.0, 475.0)
-    .position(260.0, 180.0)
-    .resizable(false)
-    .maximizable(false)
-    .minimizable(false)
-    .fullscreen(false)
-    .decorations(false)
-    .shadow(true)
-    .skip_taskbar(true)
-    .build()
-    .map_err(|error| format!("Could not create AMP99 Preferences: {error}"))?;
-
+    window
+        .show()
+        .map_err(|error| format!("Could not show AMP99 Preferences: {error}"))?;
     let _ = window.set_focus();
     Ok(())
 }
