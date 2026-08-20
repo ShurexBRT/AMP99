@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  clearSpotifyAuthorizationTransaction,
   clearSpotifySession,
   createSpotifyAuthorizationUrl,
   getStoredSpotifySession,
@@ -15,6 +16,11 @@ import {
   removeSpotifyPlaylistItems,
   searchSpotifyTracks,
 } from "./api";
+import { SPOTIFY_DESKTOP_REDIRECT_URI } from "./config";
+import {
+  isTauriRuntime,
+  runNativeSpotifyAuthorization,
+} from "../platform/spotifyOAuth";
 import {
   SpotifyApiError,
   SpotifyAuthError,
@@ -183,12 +189,38 @@ export function useSpotifyLibrary() {
 
   const connect = useCallback(async () => {
     setError(null);
-    const authorizationUrl = await createSpotifyAuthorizationUrl();
-    window.location.assign(authorizationUrl);
-  }, []);
+
+    if (!isTauriRuntime()) {
+      const authorizationUrl = await createSpotifyAuthorizationUrl();
+      window.location.assign(authorizationUrl);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const authorizationUrl = await createSpotifyAuthorizationUrl({
+        redirectUri: SPOTIFY_DESKTOP_REDIRECT_URI,
+      });
+      const callbackUrl = await runNativeSpotifyAuthorization(authorizationUrl);
+      await handleSpotifyAuthorizationCallback(callbackUrl);
+      setAuthenticated(true);
+      await refreshLibrary();
+    } catch (authorizationError) {
+      clearSpotifyAuthorizationTransaction();
+      const readable = asReadableError(authorizationError);
+      setError(readable.message);
+      if (!getStoredSpotifySession()) {
+        setAuthenticated(false);
+      }
+      throw readable;
+    } finally {
+      setLoading(false);
+    }
+  }, [refreshLibrary]);
 
   const disconnect = useCallback(() => {
     clearSpotifySession();
+    clearSpotifyAuthorizationTransaction();
     setAuthenticated(false);
     setProfile(null);
     setPlaylists([]);
