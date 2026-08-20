@@ -38,6 +38,9 @@ jobs:
       - name: Install frontend dependencies
         run: npm install
 
+      - name: Verify AMP99 version consistency
+        run: npm run version:check
+
       - name: Generate AMP99 platform and Store icons
         shell: pwsh
         run: npm run tauri:icon
@@ -57,7 +60,7 @@ jobs:
             -IdentityName "AMP99.Dev" `
             -Publisher "CN=AMP99 Development" `
             -PublisherDisplayName "AMP99" `
-            -Version "0.1.0.0"
+            -Version "0.2.0.1"
 
       - name: Show Store package
         shell: pwsh
