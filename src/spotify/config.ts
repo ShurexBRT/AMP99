@@ -6,6 +6,12 @@ export const SPOTIFY_AUTHORIZE_URL = "https://accounts.spotify.com/authorize";
 export const SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token";
 export const SPOTIFY_API_BASE_URL = "https://api.spotify.com/v1";
 
+// Spotify Client IDs are public application identifiers, not secrets. Keep the
+// environment override so contributors can test against a separate dev app.
+export const AMP99_SPOTIFY_CLIENT_ID = "7a375f111fbc4d2f8357b8430f180806";
+export const SPOTIFY_BROWSER_REDIRECT_URI = "http://127.0.0.1:5173/callback";
+export const SPOTIFY_DESKTOP_REDIRECT_URI = "http://127.0.0.1:43821/callback";
+
 export const SPOTIFY_SCOPES = [
   "playlist-read-private",
   "playlist-read-collaborative",
@@ -28,16 +34,9 @@ export type SpotifyConfig = {
 };
 
 export function getSpotifyConfig(): SpotifyConfig {
-  const clientId = env.VITE_SPOTIFY_CLIENT_ID?.trim() ?? "";
+  const clientId = env.VITE_SPOTIFY_CLIENT_ID?.trim() || AMP99_SPOTIFY_CLIENT_ID;
   const redirectUri =
-    env.VITE_SPOTIFY_REDIRECT_URI?.trim() ||
-    "http://127.0.0.1:5173/callback";
-
-  if (!clientId) {
-    throw new Error(
-      "Spotify is not configured. Set VITE_SPOTIFY_CLIENT_ID in your local .env file.",
-    );
-  }
+    env.VITE_SPOTIFY_REDIRECT_URI?.trim() || SPOTIFY_BROWSER_REDIRECT_URI;
 
   return {
     clientId,
