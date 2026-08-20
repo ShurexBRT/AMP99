@@ -6,6 +6,11 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import {
+  broadcastSkinFile,
+  broadcastSkinReset,
+  subscribeSkinSync,
+} from "../windowing/bridge";
 import { importWinampSkin } from "./skinLoader";
 import {
   renderCoreSkinSprites,
@@ -54,27 +59,39 @@ export function useSkinManager() {
   );
   const [loading, setLoading] = useState(false);
 
-  const loadSkin = useCallback(async (file: File): Promise<SkinLoadSummary> => {
-    setLoading(true);
+  const applySkin = useCallback(
+    async (file: File, broadcast: boolean): Promise<SkinLoadSummary> => {
+      setLoading(true);
 
-    try {
-      const imported = await importWinampSkin(file);
-      const rendered = await renderCoreSkinSprites(imported);
+      try {
+        const imported = await importWinampSkin(file);
+        const rendered = await renderCoreSkinSprites(imported);
 
-      setActiveSkin(imported.name);
-      setRenderedSkin(rendered);
-      publishSharedSkin(rendered);
+        setActiveSkin(imported.name);
+        setRenderedSkin(rendered);
+        publishSharedSkin(rendered);
 
-      return {
-        name: imported.name,
-        assetCount: imported.supportedAssets.length,
-        renderedSpriteCount: rendered.sprites.size,
-        warnings: rendered.warnings,
-      };
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+        if (broadcast && isTauri()) {
+          broadcastSkinFile(file.name, await file.arrayBuffer());
+        }
+
+        return {
+          name: imported.name,
+          assetCount: imported.supportedAssets.length,
+          renderedSpriteCount: rendered.sprites.size,
+          warnings: rendered.warnings,
+        };
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
+
+  const loadSkin = useCallback(
+    (file: File) => applySkin(file, true),
+    [applySkin],
+  );
 
   const loadSkinPath = useCallback(
     async (path: string) => {
@@ -82,10 +99,31 @@ export function useSkinManager() {
       const file = new File([new Uint8Array(bytes)], filenameFromPath(path), {
         type: "application/zip",
       });
-      return loadSkin(file);
+      // The native file-association event is emitted to every AMP99 webview already,
+      // so do not rebroadcast and create duplicate decoding work.
+      return applySkin(file, false);
     },
-    [loadSkin],
+    [applySkin],
   );
+
+  useEffect(() => {
+    const unsubscribe = subscribeSkinSync((event) => {
+      if (event.type === "reset") {
+        setActiveSkin(DEFAULT_SKIN_NAME);
+        setRenderedSkin(null);
+        publishSharedSkin(null);
+        return;
+      }
+
+      const file = new File([event.bytes], event.name, {
+        type: "application/zip",
+      });
+      void applySkin(file, false).catch((error) => {
+        console.error("AMP99 could not synchronize skin across windows:", error);
+      });
+    });
+    return unsubscribe;
+  }, [applySkin]);
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -125,6 +163,7 @@ export function useSkinManager() {
     setActiveSkin(DEFAULT_SKIN_NAME);
     setRenderedSkin(null);
     publishSharedSkin(null);
+    if (isTauri()) broadcastSkinReset();
   }, []);
 
   return {
