@@ -153,6 +153,7 @@
   --playlist-current: #fff;
   --playlist-bg: #000;
   --playlist-selected-bg: #000080;
+  background-color: var(--playlist-bg);
   background-size: 275px 232px;
   border: 0;
   box-shadow: none;
@@ -179,10 +180,10 @@
   box-shadow: none;
 }
 .playlist-window.legacy-skinned-window .playlist-row {
-  height: 13px;
+  height: 14px;
   padding: 1px 1px;
   color: var(--playlist-normal);
-  font: 8px/11px "Courier New", monospace;
+  font: 9px/12px "Courier New", monospace;
 }
 .playlist-window.legacy-skinned-window .playlist-row:hover {
   background: color-mix(in srgb, var(--playlist-selected-bg) 55%, var(--playlist-bg));

@@ -28,7 +28,87 @@ type WindowStyle = CSSProperties & {
   "--playlist-selected-bg"?: string;
 };
 
+type PlaylistChromeStyle = Pick<
+  CSSProperties,
+  "backgroundImage" | "backgroundPosition" | "backgroundRepeat" | "backgroundSize"
+>;
+
 type ControlKind = "minimize" | "shade" | "close";
+
+function buildPlaylistChromeStyle(
+  sprite: (name: string) => string | null,
+  active: boolean,
+): PlaylistChromeStyle | null {
+  const layers = [
+    {
+      image: sprite(
+        active ? "playlist.topCenterActive" : "playlist.topCenterInactive",
+      ),
+      position: "center top",
+      repeat: "no-repeat",
+      size: "100px 20px",
+    },
+    {
+      image: sprite(active ? "playlist.topLeftActive" : "playlist.topLeftInactive"),
+      position: "left top",
+      repeat: "no-repeat",
+      size: "25px 20px",
+    },
+    {
+      image: sprite(active ? "playlist.topRightActive" : "playlist.topRightInactive"),
+      position: "right top",
+      repeat: "no-repeat",
+      size: "25px 20px",
+    },
+    {
+      image: sprite("playlist.bottomLeft"),
+      position: "left bottom",
+      repeat: "no-repeat",
+      size: "125px 38px",
+    },
+    {
+      image: sprite("playlist.bottomRight"),
+      position: "right bottom",
+      repeat: "no-repeat",
+      size: "150px 38px",
+    },
+    {
+      image: sprite(
+        active ? "playlist.topMiddleActive" : "playlist.topMiddleInactive",
+      ),
+      position: "left top",
+      repeat: "repeat-x",
+      size: "25px 20px",
+    },
+    {
+      image: sprite("playlist.leftSide"),
+      position: "left 0 top 20px",
+      repeat: "repeat-y",
+      size: "25px 29px",
+    },
+    {
+      image: sprite("playlist.rightSide"),
+      position: "right 0 top 20px",
+      repeat: "repeat-y",
+      size: "25px 29px",
+    },
+    {
+      image: sprite("playlist.bottomMiddle"),
+      position: "left bottom",
+      repeat: "repeat-x",
+      size: "25px 38px",
+    },
+  ];
+
+  if (layers.some((layer) => !layer.image)) return null;
+
+  return {
+    backgroundImage: layers.map((layer) => `url(${layer.image})`).join(", "),
+    backgroundPosition: layers.map((layer) => layer.position).join(", "),
+    backgroundRepeat: layers.map((layer) => layer.repeat).join(", "),
+    backgroundSize: layers.map((layer) => layer.size).join(", "),
+  };
+}
 
 function inferWindowId(title: string): WindowId {
   const normalized = title.toLowerCase();
@@ -176,12 +256,17 @@ export function WindowFrame({
   const activeShade = active
     ? resolvedShade
     : resolvedInactiveShade ?? resolvedShade;
-  const displayedBackground = shaded && activeShade ? activeShade : resolvedBackground;
+  const playlistChrome =
+    resolvedWindowId === "playlist" && !shaded
+      ? buildPlaylistChromeStyle(sharedSprite, active)
+      : null;
+  const displayedBackground =
+    shaded && activeShade ? activeShade : playlistChrome ? null : resolvedBackground;
   const displayedTitlebar =
     resolvedWindowId === "playlist" || (shaded && activeShade)
       ? null
       : activeTitlebar;
-  const hasSkinBackground = Boolean(displayedBackground);
+  const hasSkinBackground = Boolean(displayedBackground || playlistChrome);
   const colors = sharedSkin?.playlistColors;
 
   const style: WindowStyle = {
@@ -191,6 +276,7 @@ export function WindowFrame({
     height: renderedHeight,
     backgroundImage: displayedBackground ? `url(${displayedBackground})` : undefined,
     backgroundSize: shaded ? `${width}px 14px` : undefined,
+    ...playlistChrome,
   };
 
   if (resolvedWindowId === "playlist" && colors) {
