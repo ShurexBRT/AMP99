@@ -8,7 +8,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$PublisherDisplayName,
 
-    [string]$Version = "0.1.0.0",
+    [string]$Version = "0.2.0.1",
 
     [ValidateSet("x64")]
     [string]$Architecture = "x64",
@@ -19,7 +19,7 @@ param(
 
     [string]$IconDir = "src-tauri/icons",
 
-    [string]$OutputPath = "src-tauri/target/release/bundle/msix/AMP99_0.1.0_x64.msix"
+    [string]$OutputPath = "src-tauri/target/release/bundle/msix/AMP99_0.2.0-alpha.1_x64.msix"
 )
 
 $ErrorActionPreference = "Stop"
@@ -61,7 +61,7 @@ function Xml-Escape([string]$Value) {
 }
 
 if ($Version -notmatch '^\d+\.\d+\.\d+\.\d+$') {
-    throw "MSIX version must contain exactly four numeric components, for example 0.1.0.0. Received: $Version"
+    throw "MSIX version must contain exactly four numeric components, for example 0.2.0.1. Received: $Version"
 }
 
 $identityPattern = '^[A-Za-z0-9][A-Za-z0-9.-]{2,49}$'
