@@ -1,5 +1,7 @@
 import { useRef, useState } from "react";
 import { useSkinManager } from "../skins/useSkinManager";
+import { checkForAmp99Update } from "../updates/githubUpdates";
+import { openOfficialAmp99Release } from "../updates/nativeUpdateLinks";
 import { forgetNativeWindowPositions } from "../windowing/nativeWindowHost";
 import {
   hidePreferencesWindow,
@@ -90,6 +92,9 @@ export function PreferencesWindow() {
   const version = useAmp99Version();
   const fileInput = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState("READY");
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [releaseUrl, setReleaseUrl] = useState<string | null>(null);
+  const [latestVersion, setLatestVersion] = useState<string | null>(null);
 
   const changePreference = (key: PreferenceKey, value: boolean) => {
     setPreference(key, value);
@@ -110,6 +115,42 @@ export function PreferencesWindow() {
     } catch (error) {
       setStatus(
         error instanceof Error ? error.message.toUpperCase() : "SKIN LOAD FAILED",
+      );
+    }
+  };
+
+  const checkForUpdates = async () => {
+    setCheckingUpdate(true);
+    setReleaseUrl(null);
+    setLatestVersion(null);
+    setStatus("CHECKING FOR UPDATES...");
+    try {
+      const result = await checkForAmp99Update(version);
+      if (result.status === "update-available") {
+        setReleaseUrl(result.latest.releaseUrl);
+        setLatestVersion(result.latest.version);
+        setStatus(`UPDATE AVAILABLE: ${result.latest.version.toUpperCase()}`);
+      } else {
+        setLatestVersion(result.latest?.version ?? null);
+        setStatus("AMP99 IS UP TO DATE");
+      }
+    } catch (error) {
+      setStatus(
+        error instanceof Error ? error.message.toUpperCase() : "UPDATE CHECK FAILED",
+      );
+    } finally {
+      setCheckingUpdate(false);
+    }
+  };
+
+  const openRelease = async () => {
+    if (!releaseUrl) return;
+    try {
+      await openOfficialAmp99Release(releaseUrl);
+      setStatus("OPENED OFFICIAL AMP99 RELEASE PAGE");
+    } catch (error) {
+      setStatus(
+        error instanceof Error ? error.message.toUpperCase() : "COULD NOT OPEN RELEASE PAGE",
       );
     }
   };
@@ -192,6 +233,26 @@ export function PreferencesWindow() {
               />
             </div>
             <small>User-supplied classic .wsz skins only. AMP99 does not bundle legacy skins.</small>
+          </fieldset>
+
+          <fieldset className="preferences-group preferences-updates">
+            <legend>UPDATES</legend>
+            <div className="preferences-skin-row">
+              <button type="button" disabled={checkingUpdate} onClick={() => void checkForUpdates()}>
+                {checkingUpdate ? "CHECKING..." : "CHECK FOR UPDATES"}
+              </button>
+              {releaseUrl ? (
+                <button type="button" onClick={() => void openRelease()}>
+                  OPEN RELEASE PAGE
+                </button>
+              ) : null}
+            </div>
+            <small>
+              {latestVersion
+                ? `Latest published AMP99 release: ${latestVersion}. `
+                : "Checks official AMP99 GitHub Releases. "}
+              Updates are never downloaded or installed automatically.
+            </small>
           </fieldset>
 
           <fieldset className="preferences-group preferences-about">
