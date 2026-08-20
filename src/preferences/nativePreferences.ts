@@ -1,7 +1,10 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { getCurrentWebviewWindow, WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import {
+  getCurrentWebviewWindow,
+  WebviewWindow,
+} from "@tauri-apps/api/webviewWindow";
 import { useEffect, useState } from "react";
 import {
   getPreferencesSnapshot,
@@ -23,6 +26,11 @@ export async function showPreferencesWindow(): Promise<void> {
 export async function hidePreferencesWindow(): Promise<void> {
   if (!isTauri()) return;
   await getCurrentWebviewWindow().hide();
+}
+
+export async function startPreferencesWindowDrag(): Promise<void> {
+  if (!isTauri()) return;
+  await getCurrentWebviewWindow().startDragging();
 }
 
 export async function setNativeAlwaysOnTop(value: boolean): Promise<void> {
