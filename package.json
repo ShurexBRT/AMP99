@@ -1,11 +1,12 @@
 {
   "name": "amp99",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0-alpha.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "version:check": "node scripts/check-version.mjs",
+    "build": "npm run version:check && tsc --noEmit && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:icon": "tauri icon src-tauri/app-icon.svg --output src-tauri/icons",
