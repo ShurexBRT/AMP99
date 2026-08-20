@@ -60,7 +60,7 @@ jobs:
 
       - name: Run Rust unit tests
         working-directory: src-tauri
-        run: cargo test --locked
+        run: cargo test
 
       - name: Build MSI and NSIS installers
         shell: pwsh
