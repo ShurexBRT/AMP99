@@ -21,6 +21,7 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 const MAX_SKIN_BYTES: u64 = 16 * 1024 * 1024;
 const OPEN_SKIN_EVENT: &str = "amp99://open-skin";
 const MEDIA_KEY_EVENT: &str = "amp99://media-key";
+const ALWAYS_ON_TOP_EVENT: &str = "amp99://always-on-top-changed";
 const SPOTIFY_OAUTH_EVENT: &str = "amp99://spotify-oauth-callback";
 const SPOTIFY_AUTHORIZE_PREFIX: &str = "https://accounts.spotify.com/authorize";
 const SPOTIFY_CALLBACK_BIND: &str = "127.0.0.1:43821";
@@ -58,6 +59,13 @@ fn focus_main(app: &tauri::AppHandle) {
     }
 }
 
+fn focus_preferences(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("preferences") {
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
 fn set_group_always_on_top(app: &tauri::AppHandle, value: bool) -> bool {
     let mut changed = false;
     for label in PLAYER_WINDOWS {
@@ -68,6 +76,24 @@ fn set_group_always_on_top(app: &tauri::AppHandle, value: bool) -> bool {
         }
     }
     changed
+}
+
+fn publish_always_on_top(app: &tauri::AppHandle, value: bool) {
+    let _ = app.emit(ALWAYS_ON_TOP_EVENT, value);
+}
+
+#[tauri::command]
+fn set_group_always_on_top_preference(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AlwaysOnTop>,
+    value: bool,
+) -> Result<(), String> {
+    if !set_group_always_on_top(&app, value) {
+        return Err("AMP99 player windows are not available.".into());
+    }
+    state.0.store(value, Ordering::Relaxed);
+    publish_always_on_top(&app, value);
+    Ok(())
 }
 
 fn queue_skin(app: &tauri::AppHandle, path: String) {
@@ -130,7 +156,7 @@ fn open_system_browser(url: &str) -> Result<(), String> {
 
     result
         .map(|_| ())
-        .map_err(|error| format!("Could not open the Spotify sign-in page: {error}"))
+        .map_err(|error| format!("Could not open the browser: {error}"))
 }
 
 fn write_oauth_response(stream: &mut TcpStream, status: &str, body: &str) {
@@ -256,6 +282,8 @@ fn start_spotify_oauth(
 
 fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     let show = MenuItem::with_id(app, "show", "Show AMP99", true, None::<&str>)?;
+    let preferences =
+        MenuItem::with_id(app, "preferences", "Preferences...", true, None::<&str>)?;
     let always_on_top = MenuItem::with_id(
         app,
         "always-on-top",
@@ -264,7 +292,7 @@ fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
         None::<&str>,
     )?;
     let quit = MenuItem::with_id(app, "quit", "Quit AMP99", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show, &always_on_top, &quit])?;
+    let menu = Menu::with_items(app, &[&show, &preferences, &always_on_top, &quit])?;
 
     TrayIconBuilder::with_id("amp99-tray")
         .tooltip("AMP99 — Play it like it's 1999")
@@ -273,11 +301,13 @@ fn create_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "show" => focus_main(app),
+            "preferences" => focus_preferences(app),
             "always-on-top" => {
                 let state = app.state::<AlwaysOnTop>();
                 let next = !state.0.load(Ordering::Relaxed);
                 if set_group_always_on_top(app, next) {
                     state.0.store(next, Ordering::Relaxed);
+                    publish_always_on_top(app, next);
                 }
             }
             "quit" => app.exit(0),
@@ -332,7 +362,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             take_pending_skin,
             read_skin_file,
-            start_spotify_oauth
+            start_spotify_oauth,
+            set_group_always_on_top_preference
         ])
         .setup(|app| {
             if let Some(path) = find_wsz_arg(&std::env::args().collect::<Vec<_>>()) {
