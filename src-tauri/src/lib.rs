@@ -14,7 +14,7 @@ use std::{
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Emitter, Manager,
+    Emitter, Manager, WebviewUrl, WebviewWindowBuilder,
 };
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
@@ -59,11 +59,44 @@ fn focus_main(app: &tauri::AppHandle) {
     }
 }
 
-fn focus_preferences(app: &tauri::AppHandle) {
+fn ensure_preferences_window(app: &tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("preferences") {
-        let _ = window.show();
+        window
+            .show()
+            .map_err(|error| format!("Could not show AMP99 Preferences: {error}"))?;
         let _ = window.set_focus();
+        return Ok(());
     }
+
+    let window = WebviewWindowBuilder::new(
+        app,
+        "preferences",
+        WebviewUrl::App("index.html".into()),
+    )
+    .title("AMP99 Preferences")
+    .inner_size(390.0, 475.0)
+    .position(260.0, 180.0)
+    .resizable(false)
+    .maximizable(false)
+    .minimizable(false)
+    .fullscreen(false)
+    .decorations(false)
+    .shadow(true)
+    .skip_taskbar(true)
+    .build()
+    .map_err(|error| format!("Could not create AMP99 Preferences: {error}"))?;
+
+    let _ = window.set_focus();
+    Ok(())
+}
+
+fn focus_preferences(app: &tauri::AppHandle) {
+    let _ = ensure_preferences_window(app);
+}
+
+#[tauri::command]
+fn show_preferences_window(app: tauri::AppHandle) -> Result<(), String> {
+    ensure_preferences_window(&app)
 }
 
 fn set_group_always_on_top(app: &tauri::AppHandle, value: bool) -> bool {
@@ -363,7 +396,8 @@ pub fn run() {
             take_pending_skin,
             read_skin_file,
             start_spotify_oauth,
-            set_group_always_on_top_preference
+            set_group_always_on_top_preference,
+            show_preferences_window
         ])
         .setup(|app| {
             if let Some(path) = find_wsz_arg(&std::env::args().collect::<Vec<_>>()) {
