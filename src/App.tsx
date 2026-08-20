@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Equalizer } from "./components/Equalizer";
 import { MainPlayer } from "./components/MainPlayer";
 import { PlaylistEditor } from "./components/PlaylistEditor";
@@ -10,8 +10,46 @@ import { useSpotifyLibrary } from "./spotify/useSpotifyLibrary";
 import { useSpotifyPlayback } from "./spotify/useSpotifyPlayback";
 import { useAmp99State } from "./state/useAmp99State";
 import type { Track } from "./types/player";
+import {
+  requestMain,
+  subscribeMainRequests,
+  type MainWindowSnapshot,
+} from "./windowing/bridge";
+import {
+  currentNativeWindowRole,
+  setNativeWindowVisible,
+} from "./windowing/nativeWindowHost";
+import {
+  useMainWindowSnapshot,
+  useNativeWindowHost,
+  usePublishMainWindowSnapshot,
+} from "./windowing/useNativeWindowBridge";
 
-export default function App() {
+const ZERO_POSITION = { x: 0, y: 0 };
+
+const EMPTY_SNAPSHOT: MainWindowSnapshot = {
+  tracks: [],
+  currentIndex: 0,
+  isPlaying: false,
+  volume: 74,
+  balance: 0,
+  progress: 0,
+  shuffle: false,
+  repeat: false,
+  doubleSize: false,
+  playlistVisible: true,
+  equalizerVisible: true,
+  spotifyAuthenticated: false,
+  spotifyDisplayName: null,
+  spotifyPlaylists: [],
+  spotifyLoading: false,
+  spotifyError: null,
+  activeSpotifyPlaylist: null,
+  spotifyPlaylistEditable: false,
+  spotifyPlaylistReorderSafe: true,
+};
+
+function MainController({ native }: { native: boolean }) {
   const amp = useAmp99State();
   const skin = useSkinManager();
   const spotify = useSpotifyLibrary();
@@ -23,6 +61,8 @@ export default function App() {
     enabled: spotify.authenticated,
     initialVolume: amp.volume,
   });
+
+  useNativeWindowHost("main", amp.doubleSize);
 
   const spotifyPlaylistEditable = Boolean(
     activeSpotifyPlaylist &&
@@ -239,7 +279,7 @@ export default function App() {
         await playback.resume();
       }
     } catch {
-      // The playback hook records a user-readable error for the Playlist Editor.
+      // Playback hook exposes the readable error in the shared snapshot.
     }
   };
 
@@ -250,7 +290,7 @@ export default function App() {
       try {
         await playback.stop();
       } catch {
-        // The playback hook records the error.
+        // Playback hook exposes the readable error in the shared snapshot.
       }
     }
 
@@ -302,38 +342,182 @@ export default function App() {
     }
   };
 
+  const setPlaylistVisible = (visible: boolean) => {
+    amp.setPlaylistVisible(visible);
+    if (native) void setNativeWindowVisible("playlist", visible);
+  };
+
+  const setEqualizerVisible = (visible: boolean) => {
+    amp.setEqualizerVisible(visible);
+    if (native) void setNativeWindowVisible("equalizer", visible);
+  };
+
+  const sharedSnapshot = useMemo<MainWindowSnapshot>(
+    () => ({
+      tracks: amp.tracks,
+      currentIndex: amp.currentIndex,
+      isPlaying: amp.isPlaying,
+      volume: amp.volume,
+      balance: amp.balance,
+      progress: amp.progress,
+      shuffle: amp.shuffle,
+      repeat: amp.repeat,
+      doubleSize: amp.doubleSize,
+      playlistVisible: amp.playlistVisible,
+      equalizerVisible: amp.equalizerVisible,
+      spotifyAuthenticated: spotify.authenticated,
+      spotifyDisplayName: spotify.profile?.displayName ?? null,
+      spotifyPlaylists: spotify.playlists,
+      spotifyLoading: spotify.loading,
+      spotifyError: spotify.error ?? playback.error,
+      activeSpotifyPlaylist,
+      spotifyPlaylistEditable,
+      spotifyPlaylistReorderSafe: activeSpotifyPlaylistReorderSafe,
+    }),
+    [
+      amp.tracks,
+      amp.currentIndex,
+      amp.isPlaying,
+      amp.volume,
+      amp.balance,
+      amp.progress,
+      amp.shuffle,
+      amp.repeat,
+      amp.doubleSize,
+      amp.playlistVisible,
+      amp.equalizerVisible,
+      spotify.authenticated,
+      spotify.profile?.displayName,
+      spotify.playlists,
+      spotify.loading,
+      spotify.error,
+      playback.error,
+      activeSpotifyPlaylist,
+      spotifyPlaylistEditable,
+      activeSpotifyPlaylistReorderSafe,
+    ],
+  );
+
+  usePublishMainWindowSnapshot(sharedSnapshot);
+
+  useEffect(() => {
+    if (!native) return;
+
+    return subscribeMainRequests(async ({ command, payload }) => {
+      switch (command) {
+        case "togglePlay":
+          return togglePlay();
+        case "stop":
+          return stopPlayback();
+        case "previous":
+          return previousTrack();
+        case "next":
+          return nextTrack();
+        case "setVolume":
+          changeVolume(payload as number);
+          return;
+        case "setBalance":
+          amp.setBalance(payload as number);
+          return;
+        case "setProgress":
+          seek(payload as number);
+          return;
+        case "toggleShuffle":
+          toggleShuffle();
+          return;
+        case "toggleRepeat":
+          toggleRepeat();
+          return;
+        case "setDoubleSize":
+          amp.setDoubleSize(payload as boolean);
+          return;
+        case "setPlaylistVisible":
+          setPlaylistVisible(payload as boolean);
+          return;
+        case "setEqualizerVisible":
+          setEqualizerVisible(payload as boolean);
+          return;
+        case "selectTrack":
+          return playTrackAt(payload as number);
+        case "connectSpotify":
+          return spotify.connect();
+        case "disconnectSpotify":
+          disconnectSpotify();
+          return;
+        case "refreshSpotify":
+          return spotify.refreshLibrary();
+        case "loadSpotifyPlaylist":
+          return loadSpotifyPlaylist(payload as SpotifyPlaylist);
+        case "loadLikedSongs":
+          return loadLikedSongs();
+        case "createSpotifyPlaylist": {
+          const request = payload as { name: string; isPublic: boolean };
+          return createSpotifyPlaylist(request.name, request.isPublic);
+        }
+        case "searchSpotifyTracks":
+          return spotify.searchTracks(payload as string);
+        case "addSpotifyTrack":
+          return addSpotifyTrack(payload as SpotifyTrack);
+        case "removeSpotifyTrack":
+          return removeSpotifyTrack(payload as Track);
+        case "moveSpotifyTrack":
+          return moveSpotifyTrack(payload as -1 | 1);
+        case "clearQueue":
+          amp.replaceQueue([]);
+          setActiveSpotifyPlaylist(null);
+          setActiveSpotifyPlaylistReorderSafe(true);
+          return;
+      }
+    });
+  });
+
+  const mainPlayer = (
+    <MainPlayer
+      position={native ? ZERO_POSITION : amp.positions.main}
+      track={amp.currentTrack}
+      isPlaying={amp.isPlaying}
+      volume={amp.volume}
+      balance={amp.balance}
+      progress={amp.progress}
+      shuffle={amp.shuffle}
+      repeat={amp.repeat}
+      playlistVisible={amp.playlistVisible}
+      equalizerVisible={amp.equalizerVisible}
+      skinSprites={skin.sprites}
+      onMove={(position) => amp.setWindowPosition("main", position)}
+      onTogglePlay={() => void togglePlay()}
+      onStop={() => void stopPlayback()}
+      onPrevious={() => void previousTrack()}
+      onNext={() => void nextTrack()}
+      onVolume={changeVolume}
+      onBalance={amp.setBalance}
+      onProgress={seek}
+      onShuffle={toggleShuffle}
+      onRepeat={toggleRepeat}
+      onTogglePlaylist={() => setPlaylistVisible(!amp.playlistVisible)}
+      onToggleEqualizer={() => setEqualizerVisible(!amp.equalizerVisible)}
+    />
+  );
+
+  if (native) {
+    return (
+      <main className="native-window-root" data-double-size={amp.doubleSize ? "true" : "false"}>
+        {mainPlayer}
+      </main>
+    );
+  }
+
   return (
     <main className="desktop" data-double-size={amp.doubleSize ? "true" : "false"}>
       <div className="desktop-brand">AMP99 <span>PLAY IT LIKE IT'S 1999</span></div>
       <button className="size-toggle" onClick={() => amp.setDoubleSize((value) => !value)}>{amp.doubleSize ? "1×" : "2×"}</button>
-
-      <MainPlayer
-        position={amp.positions.main}
-        track={amp.currentTrack}
-        isPlaying={amp.isPlaying}
-        volume={amp.volume}
-        balance={amp.balance}
-        progress={amp.progress}
-        shuffle={amp.shuffle}
-        repeat={amp.repeat}
-        playlistVisible={amp.playlistVisible}
-        equalizerVisible={amp.equalizerVisible}
-        skinSprites={skin.sprites}
-        onMove={(position) => amp.setWindowPosition("main", position)}
-        onTogglePlay={() => void togglePlay()}
-        onStop={() => void stopPlayback()}
-        onPrevious={() => void previousTrack()}
-        onNext={() => void nextTrack()}
-        onVolume={changeVolume}
-        onBalance={amp.setBalance}
-        onProgress={seek}
-        onShuffle={toggleShuffle}
-        onRepeat={toggleRepeat}
-        onTogglePlaylist={() => amp.setPlaylistVisible((value) => !value)}
-        onToggleEqualizer={() => amp.setEqualizerVisible((value) => !value)}
-      />
-
-      {amp.equalizerVisible && <Equalizer position={amp.positions.equalizer} onMove={(position) => amp.setWindowPosition("equalizer", position)} />}
+      {mainPlayer}
+      {amp.equalizerVisible && (
+        <Equalizer
+          position={amp.positions.equalizer}
+          onMove={(position) => amp.setWindowPosition("equalizer", position)}
+        />
+      )}
       {amp.playlistVisible && (
         <PlaylistEditor
           position={amp.positions.playlist}
@@ -372,4 +556,89 @@ export default function App() {
       )}
     </main>
   );
+}
+
+function NativeEqualizerWindow() {
+  const snapshot = useMainWindowSnapshot() ?? EMPTY_SNAPSHOT;
+  const skin = useSkinManager();
+  useNativeWindowHost("equalizer", snapshot.doubleSize);
+
+  return (
+    <main className="native-window-root" data-double-size={snapshot.doubleSize ? "true" : "false"}>
+      <Equalizer
+        position={ZERO_POSITION}
+        onMove={() => undefined}
+        skinSprites={skin.sprites}
+      />
+    </main>
+  );
+}
+
+function NativePlaylistWindow() {
+  const snapshot = useMainWindowSnapshot() ?? EMPTY_SNAPSHOT;
+  const skin = useSkinManager();
+  useNativeWindowHost("playlist", snapshot.doubleSize);
+
+  return (
+    <main className="native-window-root" data-double-size={snapshot.doubleSize ? "true" : "false"}>
+      <PlaylistEditor
+        position={ZERO_POSITION}
+        tracks={snapshot.tracks}
+        currentIndex={snapshot.currentIndex}
+        activeSkin={skin.activeSkin}
+        skinLoading={skin.loading}
+        spotifyAuthenticated={snapshot.spotifyAuthenticated}
+        spotifyDisplayName={snapshot.spotifyDisplayName}
+        spotifyPlaylists={snapshot.spotifyPlaylists}
+        spotifyLoading={snapshot.spotifyLoading}
+        spotifyError={snapshot.spotifyError}
+        activeSpotifyPlaylist={snapshot.activeSpotifyPlaylist}
+        spotifyPlaylistEditable={snapshot.spotifyPlaylistEditable}
+        spotifyPlaylistReorderSafe={snapshot.spotifyPlaylistReorderSafe}
+        onMove={() => undefined}
+        onSelectTrack={(index) => {
+          void requestMain("playlist", "selectTrack", index);
+        }}
+        onLoadSkin={skin.loadSkin}
+        onResetSkin={skin.resetSkin}
+        onConnectSpotify={() => requestMain("playlist", "connectSpotify", undefined)}
+        onDisconnectSpotify={() => {
+          void requestMain("playlist", "disconnectSpotify", undefined);
+        }}
+        onRefreshSpotify={() => requestMain("playlist", "refreshSpotify", undefined)}
+        onLoadSpotifyPlaylist={(playlist) =>
+          requestMain("playlist", "loadSpotifyPlaylist", playlist)
+        }
+        onLoadLikedSongs={() => requestMain("playlist", "loadLikedSongs", undefined)}
+        onCreateSpotifyPlaylist={(name, isPublic) =>
+          requestMain("playlist", "createSpotifyPlaylist", { name, isPublic })
+        }
+        onSearchSpotifyTracks={(query) =>
+          requestMain("playlist", "searchSpotifyTracks", query)
+        }
+        onAddSpotifyTrack={(track) =>
+          requestMain("playlist", "addSpotifyTrack", track)
+        }
+        onRemoveSpotifyTrack={(track) =>
+          requestMain("playlist", "removeSpotifyTrack", track)
+        }
+        onMoveSpotifyTrack={(direction) =>
+          requestMain("playlist", "moveSpotifyTrack", direction)
+        }
+        onClearQueue={() => {
+          void requestMain("playlist", "clearQueue", undefined);
+        }}
+      />
+    </main>
+  );
+}
+
+export default function App() {
+  const role = currentNativeWindowRole();
+
+  if (role === "main") return <MainController native />;
+  if (role === "equalizer") return <NativeEqualizerWindow />;
+  if (role === "playlist") return <NativePlaylistWindow />;
+
+  return <MainController native={false} />;
 }
