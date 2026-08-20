@@ -49,14 +49,16 @@
         "height": 232,
         "x": 395,
         "y": 120,
-        "resizable": false,
+        "resizable": true,
         "maximizable": false,
         "minimizable": false,
         "fullscreen": false,
         "decorations": false,
         "shadow": false,
         "skipTaskbar": true,
-        "backgroundColor": "#090b0e"
+        "backgroundColor": "#090b0e",
+        "minWidth": 275,
+        "minHeight": 145
       }
     ],
     "security": {
@@ -72,7 +74,9 @@
     "longDescription": "AMP99 is a free retro desktop music player inspired by late-90s desktop player workflows. Play it like it's 1999.",
     "fileAssociations": [
       {
-        "ext": ["wsz"],
+        "ext": [
+          "wsz"
+        ],
         "name": "AMP99 Skin",
         "description": "AMP99 / Winamp-compatible skin"
       }

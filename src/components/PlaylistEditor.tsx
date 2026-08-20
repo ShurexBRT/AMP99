@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import type { SkinLoadSummary } from "../skins/useSkinManager";
 import type { SpotifyPlaylist, SpotifyTrack } from "../spotify/types";
 import type { Track, WindowPosition } from "../types/player";
+import { startNativeWindowResize } from "../windowing/nativeWindowHost";
 import { WindowFrame } from "./WindowFrame";
 
 type Props = {
@@ -333,7 +334,7 @@ export function PlaylistEditor({
               )}
               <span className="popup-separator" aria-hidden="true" />
               <button disabled={skinLoading} onClick={() => fileInput.current?.click()}>
-                {skinLoading ? "Loading Skin..." : "Load Winamp Skin..."}
+                {skinLoading ? "Loading Skin..." : "Load Skin..."}
               </button>
               <button onClick={resetSkin}>Use AMP99 Default</button>
               <span className="popup-separator" aria-hidden="true" />
@@ -376,6 +377,18 @@ export function PlaylistEditor({
           }}
         />
       </div>
+
+      <button
+        type="button"
+        className="playlist-resize-handle"
+        aria-label="Resize Playlist Editor"
+        title="Drag to resize Playlist Editor"
+        onPointerDown={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          void startNativeWindowResize("playlist", "SouthEast");
+        }}
+      />
 
       {createDialogOpen && (
         <div className="playlist-dialog-backdrop" role="presentation">
