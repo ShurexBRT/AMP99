@@ -22,9 +22,8 @@ export const DEFAULT_PREFERENCES: Amp99Preferences = {
 };
 
 function normalizePreferences(value: unknown): Amp99Preferences {
-  const candidate = value && typeof value === "object"
-    ? (value as Partial<Amp99Preferences>)
-    : {};
+  const candidate =
+    value && typeof value === "object" ? (value as Partial<Amp99Preferences>) : {};
 
   return {
     alwaysOnTop:
@@ -54,12 +53,19 @@ function normalizePreferences(value: unknown): Amp99Preferences {
   };
 }
 
+function parsePreferences(raw: string | null): Amp99Preferences {
+  if (!raw) return DEFAULT_PREFERENCES;
+  try {
+    return normalizePreferences(JSON.parse(raw));
+  } catch {
+    return DEFAULT_PREFERENCES;
+  }
+}
+
 function readPreferences(): Amp99Preferences {
   if (typeof window === "undefined") return DEFAULT_PREFERENCES;
-
   try {
-    const saved = window.localStorage.getItem(STORAGE_KEY);
-    return saved ? normalizePreferences(JSON.parse(saved)) : DEFAULT_PREFERENCES;
+    return parsePreferences(window.localStorage.getItem(STORAGE_KEY));
   } catch {
     return DEFAULT_PREFERENCES;
   }
@@ -96,9 +102,7 @@ channel?.addEventListener("message", (event: MessageEvent<unknown>) => {
 if (typeof window !== "undefined") {
   window.addEventListener("storage", (event) => {
     if (event.key !== STORAGE_KEY) return;
-    snapshot = event.newValue
-      ? normalizePreferences(JSON.parse(event.newValue))
-      : DEFAULT_PREFERENCES;
+    snapshot = parsePreferences(event.newValue);
     notify();
   });
 }
