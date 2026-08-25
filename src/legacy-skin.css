@@ -46,7 +46,7 @@
   background-repeat: no-repeat;
   background-position: 0 0;
   color: #d8d8d8;
-  font: 6px/8px Tahoma, Arial, sans-serif;
+  font: 8px/10px Tahoma, Arial, sans-serif;
   text-shadow: none;
   image-rendering: pixelated;
 }
@@ -98,7 +98,7 @@
   height: 13px;
   overflow: hidden;
   color: #20e030;
-  font: 700 12px/13px "Courier New", monospace;
+  font: 700 14px/15px "Courier New", monospace;
   letter-spacing: 1px;
 }
 
@@ -111,7 +111,7 @@
   overflow: hidden;
   white-space: nowrap;
   color: #18d428;
-  font: 700 8px/9px "Courier New", monospace;
+  font: 700 10px/11px "Courier New", monospace;
   text-overflow: clip;
 }
 

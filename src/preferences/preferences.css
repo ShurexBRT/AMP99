@@ -10,7 +10,7 @@
   background: #15171a;
   color: #d8d8d8;
   font-family: "MS Sans Serif", Tahoma, Arial, sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   user-select: none;
 }
 
@@ -25,7 +25,7 @@
 }
 
 .preferences-titlebar {
-  height: 18px;
+  height: 20px;
   box-sizing: border-box;
   display: flex;
   align-items: center;
@@ -42,17 +42,17 @@
   width: 15px;
   height: 14px;
   padding: 0;
-  line-height: 11px;
+  line-height: 13px;
   border: 1px solid;
   border-color: #efefef #202020 #202020 #efefef;
   background: #b8b8b8;
   color: #111;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 700;
 }
 
 .preferences-content {
-  height: calc(100% - 18px);
+  height: calc(100% - 20px);
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -72,7 +72,7 @@
 .preferences-group legend {
   padding: 0 5px;
   color: #a7ff9a;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.7px;
 }
@@ -99,7 +99,7 @@
 
 .preferences-check-copy strong {
   color: #f1f1f1;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
 }
 
@@ -107,8 +107,8 @@
 .preferences-group > small,
 .preferences-about small {
   color: #a7a9ad;
-  font-size: 9px;
-  line-height: 1.25;
+  font-size: 11px;
+  line-height: 1.3;
 }
 
 .preferences-skin-row {
@@ -126,7 +126,7 @@
   background: #b8b8b8;
   color: #101010;
   font-family: inherit;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .preferences-window button:not(.preferences-titlebar button):active {
@@ -160,7 +160,7 @@
   padding-top: 2px;
   color: #8fe680;
   font-family: "Courier New", monospace;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .preferences-footer span {
