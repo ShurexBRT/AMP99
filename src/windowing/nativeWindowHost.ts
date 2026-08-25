@@ -7,6 +7,7 @@ import {
 } from "@tauri-apps/api/webviewWindow";
 import { getPreferencesSnapshot } from "../preferences/preferencesStore";
 import type { Amp99NativeWindowRole } from "./bridge";
+import { MAIN_WINDOW_WIDTH } from "./windowDimensions";
 
 const POSITION_STORAGE_KEY = "amp99.nativeWindowPositions.v1";
 const SIZE_STORAGE_KEY = "amp99.nativeWindowSizes.v1";
@@ -15,7 +16,7 @@ const SNAP_THRESHOLD_PX = 14;
 const DOCK_LINK_THRESHOLD_PX = 2;
 
 const BASE_SIZE: Record<Amp99NativeWindowRole, { width: number; height: number }> = {
-  main: { width: 275, height: 116 },
+  main: { width: MAIN_WINDOW_WIDTH, height: 116 },
   equalizer: { width: 275, height: 116 },
   playlist: { width: 275, height: 232 },
 };
@@ -174,12 +175,14 @@ export async function applyNativeWindowSize(
   role: Amp99NativeWindowRole,
   doubleSize: boolean,
   shaded = shadedFromDocument(),
+  widthOverride?: number,
 ): Promise<void> {
   if (!isNativeHostFor(role)) return;
 
   document.documentElement.dataset.doubleSize = doubleSize ? "true" : "false";
   const factor = doubleSize ? 2 : 1;
   const base = BASE_SIZE[role];
+  const width = widthOverride ?? base.width;
 
   if (role === "playlist" && !shaded && !doubleSize) {
     const saved = readSavedSizes().playlist;
@@ -193,7 +196,7 @@ export async function applyNativeWindowSize(
 
   const height = shaded ? 14 : base.height;
   await getCurrentWebviewWindow().setSize(
-    new LogicalSize(base.width * factor, height * factor),
+    new LogicalSize(width * factor, height * factor),
   );
 }
 

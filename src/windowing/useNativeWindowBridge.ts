@@ -29,6 +29,7 @@ export function usePublishMainWindowSnapshot(snapshot: MainWindowSnapshot): void
 export function useNativeWindowHost(
   role: Amp99NativeWindowRole,
   doubleSize: boolean,
+  widthOverride?: number,
 ): void {
   useEffect(() => {
     let dispose: (() => void) | undefined;
@@ -39,6 +40,6 @@ export function useNativeWindowHost(
   }, [role]);
 
   useEffect(() => {
-    void applyNativeWindowSize(role, doubleSize);
-  }, [role, doubleSize]);
+    void applyNativeWindowSize(role, doubleSize, undefined, widthOverride);
+  }, [role, doubleSize, widthOverride]);
 }

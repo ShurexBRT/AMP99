@@ -35,6 +35,10 @@ import {
   useNativeWindowHost,
   usePublishMainWindowSnapshot,
 } from "./windowing/useNativeWindowBridge";
+import {
+  LEGACY_MAIN_WINDOW_WIDTH,
+  MAIN_WINDOW_WIDTH,
+} from "./windowing/windowDimensions";
 
 const ZERO_POSITION = { x: 0, y: 0 };
 
@@ -81,7 +85,10 @@ function MainController({ native }: { native: boolean }) {
   });
   const autoAdvanceTimerRef = useRef<number | null>(null);
 
-  useNativeWindowHost("main", amp.doubleSize);
+  const mainWindowWidth = skin.sprites?.has("main.windowBackground")
+    ? LEGACY_MAIN_WINDOW_WIDTH
+    : MAIN_WINDOW_WIDTH;
+  useNativeWindowHost("main", amp.doubleSize, mainWindowWidth);
 
   useEffect(() => {
     if (!native) return;
