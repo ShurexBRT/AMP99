@@ -69,7 +69,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "__AMP99_UPDATER_PUBLIC_KEY__",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFFOTUxQjI1MDE2MTg1QTMKUldTamhXRUJKUnVWcmh2bm1hR0dVbGhuY3FaOUhIdnRVTk9ZWlVBN1l0bk1KTVdlc1B0THlNSzEK",
       "endpoints": [
         "https://github.com/ShurexBRT/AMP99/releases/latest/download/latest.json"
       ],
