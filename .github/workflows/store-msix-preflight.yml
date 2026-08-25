@@ -36,7 +36,7 @@ jobs:
           workspaces: src-tauri -> target
 
       - name: Install frontend dependencies
-        run: npm install
+        run: npm ci
 
       - name: Verify AMP99 version consistency
         run: npm run version:check
