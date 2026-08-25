@@ -1,10 +1,12 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSkinManager } from "../skins/useSkinManager";
 import { checkForAmp99Update } from "../updates/githubUpdates";
 import { openOfficialAmp99Release } from "../updates/nativeUpdateLinks";
 import {
   checkForNativeAmp99Update,
+  getLastNativeAmp99Update,
   installNativeAmp99Update,
+  subscribeNativeAmp99Updates,
 } from "../updates/nativeUpdater";
 import { isTauri } from "@tauri-apps/api/core";
 import type { Update } from "@tauri-apps/plugin-updater";
@@ -101,7 +103,17 @@ export function PreferencesWindow() {
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [releaseUrl, setReleaseUrl] = useState<string | null>(null);
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
-  const [nativeUpdate, setNativeUpdate] = useState<Update | null>(null);
+  const [nativeUpdate, setNativeUpdate] = useState<Update | null>(() =>
+    getLastNativeAmp99Update(),
+  );
+
+  useEffect(() => {
+    const unsubscribe = subscribeNativeAmp99Updates(setNativeUpdate);
+    if (isTauri()) {
+      void checkForNativeAmp99Update().catch(() => undefined);
+    }
+    return unsubscribe;
+  }, []);
 
   const changePreference = (key: PreferenceKey, value: boolean) => {
     setPreference(key, value);
