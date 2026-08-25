@@ -60,7 +60,7 @@ jobs:
             -IdentityName "AMP99.Dev" `
             -Publisher "CN=AMP99 Development" `
             -PublisherDisplayName "AMP99" `
-            -Version "0.2.0.6"
+            -Version "0.2.0.7"
 
       - name: Show Store package
         shell: pwsh

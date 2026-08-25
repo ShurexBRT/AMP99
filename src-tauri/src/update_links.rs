@@ -41,7 +41,7 @@ mod tests {
     #[test]
     fn accepts_official_release_urls() {
         assert!(is_official_amp99_release_url(
-            "https://github.com/ShurexBRT/AMP99/releases/tag/v0.2.0-alpha.6"
+            "https://github.com/ShurexBRT/AMP99/releases/tag/v0.2.0-alpha.7"
         ));
     }
 
