@@ -62,11 +62,50 @@ jobs:
         working-directory: src-tauri
         run: cargo test
 
+      - name: Verify updater signing configuration
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          $config = Get-Content 'src-tauri/tauri.conf.json' -Raw | ConvertFrom-Json
+          if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
+            throw 'TAURI_SIGNING_PRIVATE_KEY GitHub Secret is missing.'
+          }
+          if ($config.plugins.updater.pubkey -eq '__AMP99_UPDATER_PUBLIC_KEY__') {
+            throw 'Replace __AMP99_UPDATER_PUBLIC_KEY__ in src-tauri/tauri.conf.json before publishing.'
+          }
+
       - name: Build MSI and NSIS installers
         shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           & npm.cmd run tauri -- build --bundles msi,nsis
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Create signed updater manifest
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME.Substring(1)
+          $setup = Get-ChildItem 'src-tauri/target/release/bundle/nsis/*-setup.exe' | Select-Object -First 1
+          if (-not $setup) { throw 'AMP99 signed NSIS updater artifact was not produced.' }
+          $signaturePath = "$($setup.FullName).sig"
+          if (-not (Test-Path $signaturePath)) { throw "Missing updater signature: $signaturePath" }
+          $signature = (Get-Content $signaturePath -Raw).Trim()
+          $downloadUrl = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:GITHUB_REF_NAME/$($setup.Name)"
+          $manifest = @{
+            version = $version
+            notes = "AMP99 $version"
+            pub_date = (Get-Date).ToUniversalTime().ToString('o')
+            platforms = @{
+              'windows-x86_64' = @{
+                signature = $signature
+                url = $downloadUrl
+              }
+            }
+          } | ConvertTo-Json -Depth 5
+          $manifest | Set-Content -Path latest.json -Encoding utf8NoBOM
 
       - name: Smoke-test release executable
         shell: pwsh
@@ -99,6 +138,8 @@ jobs:
           $version = $env:GITHUB_REF_NAME.Substring(1)
           $msi = Get-ChildItem 'src-tauri/target/release/bundle/msi/*.msi' | Select-Object -First 1
           $setup = Get-ChildItem 'src-tauri/target/release/bundle/nsis/*-setup.exe' | Select-Object -First 1
+          $setupSignature = Get-Item "$($setup.FullName).sig"
+          $msiSignature = Get-Item "$($msi.FullName).sig"
           gh release create $env:GITHUB_REF_NAME `
             --repo $env:GITHUB_REPOSITORY `
             --title "AMP99 $version" `
@@ -106,4 +147,7 @@ jobs:
             --generate-notes `
             $msi.FullName `
             $setup.FullName `
-            'SHA256SUMS.txt'
+            $msiSignature.FullName `
+            $setupSignature.FullName `
+            'SHA256SUMS.txt' `
+            'latest.json'

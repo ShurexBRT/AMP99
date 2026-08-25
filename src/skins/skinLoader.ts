@@ -160,7 +160,7 @@ export async function importWinampSkin(file: File): Promise<ImportedSkin> {
 
   let zip: JSZip;
   try {
-    zip = await JSZip.loadAsync(file);
+    zip = await JSZip.loadAsync(await file.arrayBuffer());
   } catch {
     throw new Error("AMP99 could not read this skin archive.");
   }

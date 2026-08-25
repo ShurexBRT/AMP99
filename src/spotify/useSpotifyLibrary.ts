@@ -122,9 +122,7 @@ async function fetchAllPlaylistTracks(
 
 export function useSpotifyLibrary() {
   const initializedRef = useRef(false);
-  const [authenticated, setAuthenticated] = useState(
-    () => getStoredSpotifySession() !== null,
-  );
+  const [authenticated, setAuthenticated] = useState(false);
   const [profile, setProfile] = useState<SpotifyUserProfile | null>(null);
   const [playlists, setPlaylists] = useState<SpotifyPlaylist[]>([]);
   const [loading, setLoading] = useState(false);
@@ -171,12 +169,14 @@ export function useSpotifyLibrary() {
           setAuthenticated(true);
         }
 
-        if (getStoredSpotifySession()) {
+        if (await getStoredSpotifySession()) {
           await refreshLibrary();
+        } else {
+          setAuthenticated(false);
         }
       } catch (initializationError) {
         setError(readableSpotifyError(initializationError));
-        if (!getStoredSpotifySession()) {
+        if (!(await getStoredSpotifySession())) {
           setAuthenticated(false);
         }
       } finally {
@@ -209,7 +209,7 @@ export function useSpotifyLibrary() {
       clearSpotifyAuthorizationTransaction();
       const readable = asReadableError(authorizationError);
       setError(readable.message);
-      if (!getStoredSpotifySession()) {
+      if (!(await getStoredSpotifySession())) {
         setAuthenticated(false);
       }
       throw readable;
@@ -219,7 +219,7 @@ export function useSpotifyLibrary() {
   }, [refreshLibrary]);
 
   const disconnect = useCallback(() => {
-    clearSpotifySession();
+    void clearSpotifySession();
     clearSpotifyAuthorizationTransaction();
     setAuthenticated(false);
     setProfile(null);

@@ -3,9 +3,13 @@ import {
   SPOTIFY_TOKEN_URL,
   getSpotifyConfig,
 } from "./config";
+import {
+  deleteSpotifySessionRaw,
+  readSpotifySessionRaw,
+  writeSpotifySessionRaw,
+} from "../platform/secureSpotifyStorage";
 import { SpotifyAuthError, type SpotifySession } from "./types";
 
-const SESSION_STORAGE_KEY = "amp99.spotify.session.v1";
 const PKCE_VERIFIER_KEY = "amp99.spotify.pkceVerifier.v1";
 const OAUTH_STATE_KEY = "amp99.spotify.oauthState.v1";
 const OAUTH_REDIRECT_URI_KEY = "amp99.spotify.oauthRedirectUri.v1";
@@ -75,14 +79,14 @@ function parseTokenFailure(response: SpotifyTokenResponse): SpotifyAuthError {
   );
 }
 
-function saveSession(session: SpotifySession): SpotifySession {
-  getStorage().setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+async function saveSession(session: SpotifySession): Promise<SpotifySession> {
+  await writeSpotifySessionRaw(JSON.stringify(session));
   return session;
 }
 
-export function getStoredSpotifySession(): SpotifySession | null {
+export async function getStoredSpotifySession(): Promise<SpotifySession | null> {
   try {
-    const raw = getStorage().getItem(SESSION_STORAGE_KEY);
+    const raw = await readSpotifySessionRaw();
     if (!raw) {
       return null;
     }
@@ -96,20 +100,20 @@ export function getStoredSpotifySession(): SpotifySession | null {
       typeof parsed.expiresAt !== "number" ||
       typeof parsed.refreshTokenIssuedAt !== "number"
     ) {
-      clearSpotifySession();
+      await clearSpotifySession();
       return null;
     }
 
     return parsed as SpotifySession;
   } catch {
-    clearSpotifySession();
+    await clearSpotifySession();
     return null;
   }
 }
 
-export function clearSpotifySession(): void {
+export async function clearSpotifySession(): Promise<void> {
   try {
-    getStorage().removeItem(SESSION_STORAGE_KEY);
+    await deleteSpotifySessionRaw();
   } catch {
     // A missing/blocked storage backend already means there is no usable session.
   }
@@ -240,7 +244,7 @@ export async function refreshSpotifySession(): Promise<SpotifySession> {
   }
 
   refreshInFlight = (async () => {
-    const current = getStoredSpotifySession();
+    const current = await getStoredSpotifySession();
     if (!current?.refreshToken) {
       throw new SpotifyAuthError(
         "missing_refresh_token",
@@ -265,7 +269,7 @@ export async function refreshSpotifySession(): Promise<SpotifySession> {
 
     if (!response.ok || !payload.access_token) {
       if (payload.error === "invalid_grant") {
-        clearSpotifySession();
+        await clearSpotifySession();
       }
       throw parseTokenFailure(payload);
     }
@@ -295,7 +299,7 @@ export async function refreshSpotifySession(): Promise<SpotifySession> {
 export async function getSpotifyAccessToken(options?: {
   forceRefresh?: boolean;
 }): Promise<string> {
-  const session = getStoredSpotifySession();
+  const session = await getStoredSpotifySession();
 
   if (!session) {
     throw new SpotifyAuthError(

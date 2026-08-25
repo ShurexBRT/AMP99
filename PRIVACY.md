@@ -18,7 +18,7 @@ AMP99 stores certain application preferences on your device, such as classic win
 
 If you choose to connect Spotify, AMP99 may access information permitted by the Spotify permissions you approve, including account/profile information, playlists, saved tracks, playlist contents, and playback-related state.
 
-AMP99 currently stores Spotify authentication session data, including access and refresh tokens, in the application's local WebView storage so the session can persist between launches. These credentials are used to communicate with Spotify and are not sent to an AMP99-operated server.
+In the packaged Windows application, AMP99 stores Spotify authentication session data, including access and refresh tokens, in a Windows-user-protected DPAPI file so the session can persist between launches. Browser development mode uses WebView storage as a development fallback. These credentials are used to communicate with Spotify and are not sent to an AMP99-operated server.
 
 AMP99 does not use or distribute a Spotify Client Secret in the desktop application.
 

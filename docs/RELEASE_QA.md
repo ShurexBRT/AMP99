@@ -131,7 +131,7 @@ Do not bundle third-party `.wsz` files merely to make Store screenshots or tests
 - [ ] Local preference storage is documented.
 - [ ] User-supplied `.wsz` files remain local to AMP99 processing.
 - [ ] Disconnect behavior clears the Spotify session state currently owned by AMP99.
-- [ ] Review whether the release candidate's local Spotify token persistence meets the final security threat model; harden it in a Spotify-specific task if required.
+- [ ] Review the packaged Windows DPAPI Spotify token persistence against the final security threat model.
 
 ## 7. Microsoft Store manual gates
 

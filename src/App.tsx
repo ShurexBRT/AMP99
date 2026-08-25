@@ -445,10 +445,11 @@ function MainController({ native }: { native: boolean }) {
 
   usePublishMainWindowSnapshot(sharedSnapshot);
 
-  useEffect(() => {
-    if (!native) return;
+  const mainRequestHandlerRef = useRef<
+    Parameters<typeof subscribeMainRequests>[0]
+  >(null);
 
-    return subscribeMainRequests(async ({ command, payload }) => {
+  mainRequestHandlerRef.current = async ({ command, payload }) => {
       switch (command) {
         case "togglePlay":
           return togglePlay();
@@ -513,8 +514,15 @@ function MainController({ native }: { native: boolean }) {
           setActiveSpotifyPlaylistReorderSafe(true);
           return;
       }
-    });
-  });
+  };
+
+  useEffect(() => {
+    if (!native) return;
+
+    return subscribeMainRequests((request) =>
+      mainRequestHandlerRef.current?.(request) ?? Promise.resolve(),
+    );
+  }, [native]);
 
   const mainPlayer = (
     <MainPlayer
