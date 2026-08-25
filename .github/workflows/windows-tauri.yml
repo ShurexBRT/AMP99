@@ -44,6 +44,9 @@ jobs:
 
       - name: Build AMP99 MSI and NSIS installers
         shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           & npm.cmd run tauri -- build --bundles msi,nsis 2>&1 | Tee-Object -FilePath tauri-build.log
           $exitCode = $LASTEXITCODE
