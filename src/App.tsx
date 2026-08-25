@@ -225,7 +225,7 @@ function MainController({ native }: { native: boolean }) {
     return { trackCount: result.tracks.length };
   };
 
-  const moveSpotifyTrack = async (direction: -1 | 1) => {
+  const moveSpotifyTrack = async (trackIndex: number, direction: -1 | 1) => {
     if (!activeSpotifyPlaylist || !spotifyPlaylistEditable) {
       throw new Error("Load a Spotify playlist you can edit first.");
     }
@@ -236,7 +236,7 @@ function MainController({ native }: { native: boolean }) {
       );
     }
 
-    const sourceIndex = amp.currentIndex;
+    const sourceIndex = trackIndex;
     const targetIndex = sourceIndex + direction;
     if (targetIndex < 0 || targetIndex >= amp.tracks.length) {
       throw new Error(direction < 0 ? "Track is already first." : "Track is already last.");
@@ -511,6 +511,17 @@ function MainController({ native }: { native: boolean }) {
         case "setEqualizerVisible":
           setEqualizerVisible(payload as boolean);
           return;
+        case "playNextTrack":
+          amp.playNextTrack(payload as number);
+          return;
+        case "removeQueueTrack":
+          amp.removeTrack(payload as number);
+          return;
+        case "moveQueueTrack": {
+          const request = payload as { trackIndex: number; direction: -1 | 1 };
+          amp.moveQueueTrack(request.trackIndex, request.direction);
+          return;
+        }
         case "selectTrack":
           return playTrackAt(payload as number);
         case "connectSpotify":
@@ -535,7 +546,10 @@ function MainController({ native }: { native: boolean }) {
         case "removeSpotifyTrack":
           return removeSpotifyTrack(payload as Track);
         case "moveSpotifyTrack":
-          return moveSpotifyTrack(payload as -1 | 1);
+          {
+            const request = payload as { trackIndex: number; direction: -1 | 1 };
+            return moveSpotifyTrack(request.trackIndex, request.direction);
+          }
         case "clearQueue":
           amp.replaceQueue([]);
           setActiveSpotifyPlaylist(null);
@@ -637,6 +651,9 @@ function MainController({ native }: { native: boolean }) {
           spotifyPlaylistReorderSafe={activeSpotifyPlaylistReorderSafe}
           onMove={(position) => amp.setWindowPosition("playlist", position)}
           onSelectTrack={(index) => void playTrackAt(index)}
+          onPlayNextTrack={(index) => amp.playNextTrack(index)}
+          onRemoveQueueTrack={(index) => amp.removeTrack(index)}
+          onMoveQueueTrack={(index, direction) => amp.moveQueueTrack(index, direction)}
           onLoadSkin={skin.loadSkin}
           onResetSkin={skin.resetSkin}
           onConnectSpotify={spotify.connect}
@@ -701,6 +718,11 @@ function NativePlaylistWindow() {
         onSelectTrack={(index) => {
           void requestMain("playlist", "selectTrack", index);
         }}
+        onPlayNextTrack={(index) => requestMain("playlist", "playNextTrack", index)}
+        onRemoveQueueTrack={(index) => requestMain("playlist", "removeQueueTrack", index)}
+        onMoveQueueTrack={(index, direction) =>
+          requestMain("playlist", "moveQueueTrack", { trackIndex: index, direction })
+        }
         onLoadSkin={skin.loadSkin}
         onResetSkin={skin.resetSkin}
         onConnectSpotify={() => requestMain("playlist", "connectSpotify", undefined)}
@@ -724,8 +746,8 @@ function NativePlaylistWindow() {
         onRemoveSpotifyTrack={(track) =>
           requestMain("playlist", "removeSpotifyTrack", track)
         }
-        onMoveSpotifyTrack={(direction) =>
-          requestMain("playlist", "moveSpotifyTrack", direction)
+        onMoveSpotifyTrack={(trackIndex, direction) =>
+          requestMain("playlist", "moveSpotifyTrack", { trackIndex, direction })
         }
         onClearQueue={() => {
           void requestMain("playlist", "clearQueue", undefined);

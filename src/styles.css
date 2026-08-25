@@ -124,6 +124,7 @@ button.active { color: #8fb7ff; box-shadow: inset 0 0 4px #0b2252; }
 .playlist-row { display:grid; grid-template-columns: 22px 1fr 34px; width:100%; height:16px; padding:1px 3px; border:0; background:transparent; color:#69e86e; text-align:left; font: 11px/14px "Courier New", monospace; }
 .playlist-row:hover { background:#102617; }
 .playlist-row.selected { background:#1639a0; color:#fff; }
+.playlist-row.focused:not(.selected) { background:#102617; outline:1px dotted #69e86e; outline-offset:-1px; }
 .track-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .track-time { text-align:right; }
 .playlist-status { position:absolute; left:5px; right:5px; bottom:21px; height:14px; overflow:hidden; white-space:nowrap; color:#b5b5b5; font:10px/12px "Courier New", monospace; }
@@ -136,7 +137,16 @@ button.active { color: #8fb7ff; box-shadow: inset 0 0 4px #0b2252; }
 .popup-menu button { display:block; width:100%; height:20px; border:0; background:transparent; color:#111; text-align:left; text-shadow:none; font-size:10px; }
 .popup-menu button:hover:not(:disabled) { background:#123890; color:#fff; }
 .popup-menu button:disabled { color:#777; }
+.popup-separator { display:block; height:1px; margin:2px 1px; background:#888; border-top:1px solid #eee; }
+.popup-menu-title { padding:2px 4px 3px; color:#333; font:bold 10px/12px Tahoma, sans-serif; }
+.playlist-context-menu { position:fixed; left:0; top:0; bottom:auto; width:190px; max-height:calc(100vh - 8px); overflow:auto; }
+.playlist-context-menu button { height:22px; font-size:11px; }
 .hidden-file { display:none; }
+
+.track-info-dialog { width:230px; }
+.track-info-grid { display:grid; grid-template-columns:56px minmax(0, 1fr); gap:4px 7px; padding:7px; color:#222; font:11px/13px Tahoma, sans-serif; }
+.track-info-grid strong { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.track-info-uri { font:10px/12px "Courier New", monospace; }
 
 .desktop[data-double-size="true"] .amp-window { transform: scale(2); transform-origin: top left; }
 

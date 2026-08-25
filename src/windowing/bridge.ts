@@ -42,6 +42,12 @@ export type MainCommandMap = {
   setPlaylistVisible: { request: boolean; response: void };
   setEqualizerVisible: { request: boolean; response: void };
   selectTrack: { request: number; response: void };
+  playNextTrack: { request: number; response: void };
+  removeQueueTrack: { request: number; response: void };
+  moveQueueTrack: {
+    request: { trackIndex: number; direction: -1 | 1 };
+    response: void;
+  };
   connectSpotify: { request: undefined; response: void };
   disconnectSpotify: { request: undefined; response: void };
   refreshSpotify: { request: undefined; response: void };
@@ -61,7 +67,7 @@ export type MainCommandMap = {
   };
   removeSpotifyTrack: { request: Track; response: { trackCount: number } };
   moveSpotifyTrack: {
-    request: -1 | 1;
+    request: { trackIndex: number; direction: -1 | 1 };
     response: { trackCount: number; newIndex: number };
   };
   clearQueue: { request: undefined; response: void };
@@ -127,6 +133,13 @@ const COMMAND_PAYLOAD_VALIDATORS: Record<
   setPlaylistVisible: (value) => typeof value === "boolean",
   setEqualizerVisible: (value) => typeof value === "boolean",
   selectTrack: (value) => Number.isInteger(value) && (value as number) >= 0,
+  playNextTrack: (value) => Number.isInteger(value) && (value as number) >= 0,
+  removeQueueTrack: (value) => Number.isInteger(value) && (value as number) >= 0,
+  moveQueueTrack: (value) =>
+    isRecord(value) &&
+    Number.isInteger(value.trackIndex) &&
+    (value.trackIndex as number) >= 0 &&
+    (value.direction === -1 || value.direction === 1),
   connectSpotify: (value) => value === undefined,
   disconnectSpotify: (value) => value === undefined,
   refreshSpotify: (value) => value === undefined,
@@ -140,7 +153,11 @@ const COMMAND_PAYLOAD_VALIDATORS: Record<
     typeof value === "string" && value.trim().length > 0,
   addSpotifyTrack: (value) => isRecord(value) && typeof value.id === "string",
   removeSpotifyTrack: (value) => isRecord(value) && typeof value.id === "string",
-  moveSpotifyTrack: (value) => value === -1 || value === 1,
+  moveSpotifyTrack: (value) =>
+    isRecord(value) &&
+    Number.isInteger(value.trackIndex) &&
+    (value.trackIndex as number) >= 0 &&
+    (value.direction === -1 || value.direction === 1),
   clearQueue: (value) => value === undefined,
 };
 
