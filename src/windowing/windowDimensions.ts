@@ -1,0 +1,2 @@
+export const MAIN_WINDOW_WIDTH = 330;
+export const LEGACY_MAIN_WINDOW_WIDTH = 275;

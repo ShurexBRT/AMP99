@@ -2,6 +2,10 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useDesktopMediaControls } from "../platform/useDesktopMediaControls";
 import type { Track, WindowPosition } from "../types/player";
 import { WindowFrame } from "./WindowFrame";
+import {
+  LEGACY_MAIN_WINDOW_WIDTH,
+  MAIN_WINDOW_WIDTH,
+} from "../windowing/windowDimensions";
 
 type Props = {
   position: WindowPosition;
@@ -219,7 +223,7 @@ function LegacyMainPlayer(props: Props & { sprites: ReadonlyMap<string, string> 
     <WindowFrame
       title="AMP99"
       position={props.position}
-      width={275}
+      width={LEGACY_MAIN_WINDOW_WIDTH}
       height={116}
       onMove={props.onMove}
       className="main-player legacy-main-player"
@@ -280,7 +284,7 @@ function DefaultMainPlayer(props: Props) {
   const spectrum = spectrumHeights(props.track, elapsedExact, props.isPlaying, 18, 20);
   const streamLabel = props.track.source === "spotify" ? "SPOTIFY" : "LOCAL";
   return (
-    <WindowFrame title="AMP99" position={props.position} width={275} height={116} onMove={props.onMove} className="main-player">
+    <WindowFrame title="AMP99" position={props.position} width={MAIN_WINDOW_WIDTH} height={116} onMove={props.onMove} className="main-player">
       <div className="main-body">
         <div className="display-panel">
           <div className="time-display">{secondsToTime(elapsed)}</div>

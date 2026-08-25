@@ -96,7 +96,7 @@ button { color: #d6d6d6; }
 .stream-meta { position: absolute; right: 4px; bottom: 3px; font: 8px/9px "Courier New", monospace; color: #6aa76e; }
 
 .classic-range { accent-color: #7b9bcf; height: 10px; }
-.seek { position: absolute; left: 6px; right: 6px; top: 53px; width: 260px; margin: 0; }
+.seek { position: absolute; left: 6px; right: 6px; top: 53px; width: auto; margin: 0; }
 .transport-row { position: absolute; left: 7px; bottom: 7px; display: flex; gap: 1px; }
 .transport-row button, .toggle-row button, .eq-toolbar button, .playlist-toolbar button {
   height: 20px; min-width: 24px; padding: 0 5px; border: 1px outset #858585; background: linear-gradient(#67696c, #383a3d); font-size: 10px; font-weight: 700; text-shadow: 1px 1px #111;
