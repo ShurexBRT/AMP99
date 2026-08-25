@@ -1,6 +1,6 @@
 [package]
 name = "amp99"
-version = "0.2.0-alpha.3"
+version = "0.2.0-alpha.4"
 description = "AMP99 - Play it like it's 1999"
 authors = ["AMP99"]
 edition = "2021"
