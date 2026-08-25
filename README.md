@@ -102,7 +102,7 @@ Windows CI explicitly enumerates Win32 top-level windows for the AMP99 process a
 | Queue auto-next | **Implemented / physically tested** | AMP99 advances at track end |
 | MSI / NSIS | **Implemented / smoke-tested** | Build, install, launch, handoff, uninstall |
 | Preferences | **Implemented** | Separate native utility window with persisted player/window settings |
-| Alpha update/release channel | **Implemented / signing setup required** | Tauri signed updater foundation plus official GitHub release-page fallback; see `docs/UPDATER_SIGNING.md` |
+| Alpha update/release channel | **Implemented / signing setup required** | Startup check shows a user-confirmed update notification; signed Tauri updater plus official GitHub release-page fallback; see `docs/UPDATER_SIGNING.md` |
 | Store MSIX preflight | **Implemented** | MakeAppx pack/unpack structural verification |
 | Privacy / release docs | **Implemented** | `PRIVACY.md`, `docs/` |
 | Spotify library/playlists | **Implemented / physically tested** | Browse, Liked Songs, search, create/edit |

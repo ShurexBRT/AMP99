@@ -52,6 +52,13 @@ The CI MSIX is a structural preflight only. It is not a substitute for final Par
 - [ ] Active/inactive titlebar state changes when focus moves between classic windows.
 - [ ] Double-click titlebar toggles shade mode.
 
+### Updates
+
+- [ ] An installed older build checks for updates at startup without downloading an artifact.
+- [ ] A newer signed release shows the update notification.
+- [ ] Dismissing the notification does not download or install the update.
+- [ ] Choosing to review the update exposes the explicit `INSTALL UPDATE` action.
+
 ### Equalizer
 
 - [ ] Default AMP99 EQ remains usable.

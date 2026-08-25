@@ -31,6 +31,10 @@ Pushing an alpha tag such as `v0.2.0-alpha.3` runs
 `.github/workflows/release-alpha.yml`. The workflow builds the installers,
 their signatures and `latest.json`, then uploads them to the GitHub Release.
 Existing AMP99 installations verify the signature before offering installation.
+At startup, the main window checks for a newer signed release without downloading
+it. When one is available, AMP99 shows a notification; the user must choose to
+review and install the update. Dismissing the notification does not install or
+download anything.
 
 The signing key is part of the installed app's trust chain. Preserve the
 private key and password permanently. If the key is lost, existing clients

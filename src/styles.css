@@ -140,6 +140,46 @@ button.active { color: #8fb7ff; box-shadow: inset 0 0 4px #0b2252; }
 
 .desktop[data-double-size="true"] .amp-window { transform: scale(2); transform-origin: top left; }
 
+.native-update-notice {
+  position: fixed;
+  z-index: 100;
+  left: 3px;
+  right: 3px;
+  bottom: 3px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 24px;
+  padding: 3px;
+  border: 1px outset #aeb0b2;
+  background: #282b30;
+  color: #a7ff9a;
+  font: 8px/10px "Courier New", monospace;
+  box-shadow: 2px 2px 0 #000;
+}
+
+.native-update-notice span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.native-update-notice button {
+  min-height: 17px;
+  padding: 1px 4px;
+  border: 1px outset #858585;
+  background: linear-gradient(#67696c, #383a3d);
+  color: #fff;
+  font: 7px/9px Tahoma, sans-serif;
+}
+
+.native-update-notice button:last-child {
+  min-width: 16px;
+  padding: 0;
+}
+
 @media (max-width: 760px) {
   .desktop { min-width: 0; overflow: auto; }
   .desktop-brand { display:none; }

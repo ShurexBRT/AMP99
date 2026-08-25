@@ -3,7 +3,10 @@ import { Equalizer } from "./components/Equalizer";
 import { MainPlayer } from "./components/MainPlayer";
 import { PlaylistEditor } from "./components/PlaylistEditor";
 import { PreferencesWindow } from "./preferences/PreferencesWindow";
-import { useApplyNativePreferences } from "./preferences/nativePreferences";
+import {
+  showPreferencesWindow,
+  useApplyNativePreferences,
+} from "./preferences/nativePreferences";
 import { useSkinManager } from "./skins/useSkinManager";
 import { spotifyTracksToPlayerQueue } from "./spotify/playerAdapter";
 import { reorderSpotifyPlaylistItem } from "./spotify/playlistReorder";
@@ -21,6 +24,12 @@ import {
   currentNativeWindowRole,
   setNativeWindowVisible,
 } from "./windowing/nativeWindowHost";
+import {
+  checkForNativeAmp99Update,
+  getLastNativeAmp99Update,
+  subscribeNativeAmp99Updates,
+} from "./updates/nativeUpdater";
+import type { Update } from "@tauri-apps/plugin-updater";
 import {
   useMainWindowSnapshot,
   useNativeWindowHost,
@@ -60,6 +69,12 @@ function MainController({ native }: { native: boolean }) {
     useState<SpotifyPlaylist | null>(null);
   const [activeSpotifyPlaylistReorderSafe, setActiveSpotifyPlaylistReorderSafe] =
     useState(true);
+  const [availableUpdate, setAvailableUpdate] = useState<Update | null>(() =>
+    getLastNativeAmp99Update(),
+  );
+  const [dismissedUpdateVersion, setDismissedUpdateVersion] = useState<string | null>(
+    null,
+  );
   const playback = useSpotifyPlayback({
     enabled: spotify.authenticated,
     initialVolume: amp.volume,
@@ -67,6 +82,19 @@ function MainController({ native }: { native: boolean }) {
   const autoAdvanceTimerRef = useRef<number | null>(null);
 
   useNativeWindowHost("main", amp.doubleSize);
+
+  useEffect(() => {
+    if (!native) return;
+
+    const unsubscribe = subscribeNativeAmp99Updates(setAvailableUpdate);
+    void checkForNativeAmp99Update().catch(() => undefined);
+    return unsubscribe;
+  }, [native]);
+
+  const visibleUpdate =
+    availableUpdate && availableUpdate.version !== dismissedUpdateVersion
+      ? availableUpdate
+      : null;
 
   const spotifyPlaylistEditable = Boolean(
     activeSpotifyPlaylist &&
@@ -555,6 +583,27 @@ function MainController({ native }: { native: boolean }) {
   if (native) {
     return (
       <main className="native-window-root" data-double-size={amp.doubleSize ? "true" : "false"}>
+        {visibleUpdate ? (
+          <div className="native-update-notice" role="status">
+            <span>AMP99 {visibleUpdate.version.toUpperCase()} READY</span>
+            <button
+              type="button"
+              onClick={() => {
+                setDismissedUpdateVersion(visibleUpdate.version);
+                void showPreferencesWindow();
+              }}
+            >
+              REVIEW UPDATE
+            </button>
+            <button
+              type="button"
+              aria-label="Dismiss update notification"
+              onClick={() => setDismissedUpdateVersion(visibleUpdate.version)}
+            >
+              ×
+            </button>
+          </div>
+        ) : null}
         {mainPlayer}
       </main>
     );
