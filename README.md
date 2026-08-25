@@ -10,10 +10,10 @@ The product is **not** a modern music dashboard wearing a retro theme. The packa
 
 ## Current release track
 
-- App version: **0.2.0-alpha.8**
+- App version: **0.2.0-alpha.9**
 - Phase: **closed alpha / physical QA**
-- MSIX numeric package version: **0.2.0.8**
-- Installer release: [`v0.2.0-alpha.8`](https://github.com/ShurexBRT/AMP99/releases/tag/v0.2.0-alpha.8)
+- MSIX numeric package version: **0.2.0.9**
+- Installer release: [`v0.2.0-alpha.9`](https://github.com/ShurexBRT/AMP99/releases/tag/v0.2.0-alpha.9)
 - Version consistency is checked by `npm run version:check` and is part of the normal production build.
 
 Planned progression:
