@@ -1,9 +1,15 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { showPreferencesWindow } from "../preferences/nativePreferences";
 import type { SkinLoadSummary } from "../skins/useSkinManager";
 import type { SpotifyPlaylist, SpotifyTrack } from "../spotify/types";
 import type { Track, WindowPosition } from "../types/player";
 import { startNativeWindowResize } from "../windowing/nativeWindowHost";
+import {
+  getPlaylistContextActions,
+  spotifyTrackUrl,
+  type PlaylistContextActionId,
+  type PlaylistContextMenuState,
+} from "./playlistContextMenu";
 import { WindowFrame } from "./WindowFrame";
 
 type Props = {
@@ -22,6 +28,9 @@ type Props = {
   spotifyPlaylistReorderSafe: boolean;
   onMove: (position: WindowPosition) => void;
   onSelectTrack: (index: number) => void;
+  onPlayNextTrack: (index: number) => void | Promise<void>;
+  onRemoveQueueTrack: (index: number) => void | Promise<void>;
+  onMoveQueueTrack: (index: number, direction: -1 | 1) => void | Promise<void>;
   onLoadSkin: (file: File) => Promise<SkinLoadSummary>;
   onResetSkin: () => void;
   onConnectSpotify: () => Promise<void>;
@@ -39,6 +48,7 @@ type Props = {
   onAddSpotifyTrack: (track: SpotifyTrack) => Promise<{ trackCount: number }>;
   onRemoveSpotifyTrack: (track: Track) => Promise<{ trackCount: number }>;
   onMoveSpotifyTrack: (
+    trackIndex: number,
     direction: -1 | 1,
   ) => Promise<{ trackCount: number; newIndex: number }>;
   onClearQueue: () => void;
@@ -70,6 +80,9 @@ export function PlaylistEditor({
   spotifyPlaylistReorderSafe,
   onMove,
   onSelectTrack,
+  onPlayNextTrack,
+  onRemoveQueueTrack,
+  onMoveQueueTrack,
   onLoadSkin,
   onResetSkin,
   onConnectSpotify,
@@ -86,6 +99,9 @@ export function PlaylistEditor({
 }: Props) {
   const fileInput = useRef<HTMLInputElement>(null);
   const [menu, setMenu] = useState<Menu>(null);
+  const [contextMenu, setContextMenu] = useState<PlaylistContextMenuState | null>(null);
+  const [focusedTrackIndex, setFocusedTrackIndex] = useState(currentIndex);
+  const [trackInfo, setTrackInfo] = useState<Track | null>(null);
   const [status, setStatus] = useState("LOCAL DEMO QUEUE");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState("");
@@ -93,6 +109,28 @@ export function PlaylistEditor({
   const [searchDialogOpen, setSearchDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SpotifyTrack[]>([]);
+
+  useEffect(() => {
+    setFocusedTrackIndex(currentIndex);
+  }, [currentIndex]);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+
+    const closeContextMenu = () => setContextMenu(null);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeContextMenu();
+    };
+
+    window.addEventListener("pointerdown", closeContextMenu);
+    window.addEventListener("blur", closeContextMenu);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", closeContextMenu);
+      window.removeEventListener("blur", closeContextMenu);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [contextMenu]);
 
   const loadSkin = async (file?: File) => {
     if (!file) return;
@@ -234,7 +272,7 @@ export function PlaylistEditor({
     setStatus(`MOVING TRACK ${action}...`);
 
     try {
-      const result = await onMoveSpotifyTrack(direction);
+      const result = await onMoveSpotifyTrack(currentIndex, direction);
       setStatus(
         `MOVED TRACK ${action} · POSITION ${result.newIndex + 1}/${result.trackCount}`,
       );
@@ -255,6 +293,101 @@ export function PlaylistEditor({
     setStatus("SPOTIFY DISCONNECTED");
   };
 
+  const openContextMenu = (
+    event: React.MouseEvent<HTMLButtonElement>,
+    trackIndex: number,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setFocusedTrackIndex(trackIndex);
+    setMenu(null);
+    setContextMenu({ trackIndex, x: event.clientX, y: event.clientY });
+  };
+
+  const copyToClipboard = async (value: string, successMessage: string) => {
+    try {
+      if (!navigator.clipboard) throw new Error("Clipboard is unavailable.");
+      await navigator.clipboard.writeText(value);
+      setStatus(successMessage);
+    } catch (error) {
+      setStatus(errorMessage(error).toUpperCase());
+    }
+  };
+
+  const runContextAction = async (actionId: PlaylistContextActionId) => {
+    const trackIndex = contextMenu?.trackIndex;
+    const track = trackIndex === undefined ? undefined : tracks[trackIndex];
+    if (!track || trackIndex === undefined) return;
+
+    setContextMenu(null);
+    setMenu(null);
+
+    switch (actionId) {
+      case "play":
+        onSelectTrack(trackIndex);
+        setFocusedTrackIndex(trackIndex);
+        return;
+      case "play-next":
+        await onPlayNextTrack(trackIndex);
+        setFocusedTrackIndex(trackIndex);
+        setStatus(`QUEUED NEXT: ${track.artist.toUpperCase()} - ${track.title.toUpperCase()}`);
+        return;
+      case "remove-queue":
+        await onRemoveQueueTrack(trackIndex);
+        setFocusedTrackIndex(Math.max(0, Math.min(trackIndex, tracks.length - 2)));
+        setStatus(`REMOVED FROM QUEUE: ${track.title.toUpperCase()}`);
+        return;
+      case "move-up":
+        if (activeSpotifyPlaylist) {
+          await onMoveSpotifyTrack(trackIndex, -1);
+        } else {
+          await onMoveQueueTrack(trackIndex, -1);
+        }
+        setFocusedTrackIndex(trackIndex - 1);
+        setStatus(`MOVED UP: ${track.title.toUpperCase()}`);
+        return;
+      case "move-down":
+        if (activeSpotifyPlaylist) {
+          await onMoveSpotifyTrack(trackIndex, 1);
+        } else {
+          await onMoveQueueTrack(trackIndex, 1);
+        }
+        setFocusedTrackIndex(trackIndex + 1);
+        setStatus(`MOVED DOWN: ${track.title.toUpperCase()}`);
+        return;
+      case "copy-title":
+        await copyToClipboard(track.title, `COPIED TITLE: ${track.title.toUpperCase()}`);
+        return;
+      case "open-spotify": {
+        const url = spotifyTrackUrl(track);
+        if (!url) return;
+        window.open(url, "_blank", "noopener,noreferrer");
+        setStatus("OPENED IN SPOTIFY");
+        return;
+      }
+      case "copy-spotify-link": {
+        const url = spotifyTrackUrl(track);
+        if (!url) return;
+        await copyToClipboard(url, "COPIED SPOTIFY LINK");
+        return;
+      }
+      case "remove-spotify":
+        setStatus(`REMOVING FROM SPOTIFY: ${track.title.toUpperCase()}...`);
+        try {
+          const result = await onRemoveSpotifyTrack(track);
+          setStatus(
+            `REMOVED FROM ${activeSpotifyPlaylist?.name.toUpperCase() ?? "SPOTIFY PLAYLIST"} · ${result.trackCount} TRACKS`,
+          );
+        } catch (error) {
+          setStatus(errorMessage(error).toUpperCase());
+        }
+        return;
+      case "track-info":
+        setTrackInfo(track);
+        return;
+    }
+  };
+
   const editContext = activeSpotifyPlaylist
     ? `${activeSpotifyPlaylist.name.toUpperCase()} ${spotifyPlaylistEditable ? "[EDIT]" : "[READ ONLY]"}${spotifyPlaylistEditable && !spotifyPlaylistReorderSafe ? " [MOVE LOCKED]" : ""}`
     : null;
@@ -263,20 +396,79 @@ export function PlaylistEditor({
     spotifyPlaylistReorderSafe &&
     !spotifyLoading &&
     tracks.length > 1;
+  const canMoveTracks = activeSpotifyPlaylist ? canMove : tracks.length > 1;
+
+  const contextTrack = contextMenu ? tracks[contextMenu.trackIndex] : null;
+  const contextActions = contextTrack && contextMenu
+    ? getPlaylistContextActions({
+        track: contextTrack,
+        trackIndex: contextMenu.trackIndex,
+        currentIndex,
+        tracksLength: tracks.length,
+        spotifyPlaylistEditable,
+        spotifyLoading,
+        duplicateSpotifyTrackCount: contextTrack.uri
+          ? tracks.filter((track) => track.source === "spotify" && track.uri === contextTrack.uri).length
+          : 0,
+        canMoveTracks,
+      })
+    : [];
 
   return (
     <WindowFrame title="AMP99 PLAYLIST EDITOR" position={position} width={275} height={232} onMove={onMove} className="playlist-window">
-      <div className="playlist-list" onClick={() => setMenu(null)}>
+      <div
+        className="playlist-list"
+        onClick={() => {
+          setMenu(null);
+          setContextMenu(null);
+        }}
+        onContextMenu={(event) => event.preventDefault()}
+      >
         {tracks.length === 0 ? (
           <div className="playlist-empty">QUEUE IS EMPTY</div>
         ) : tracks.map((track, index) => (
-          <button key={`${track.source ?? "local"}-${track.id}-${index}`} className={`playlist-row ${index === currentIndex ? "selected" : ""}`} onDoubleClick={() => onSelectTrack(index)}>
+          <button
+            key={`${track.source ?? "local"}-${track.id}-${index}`}
+            className={`playlist-row ${index === currentIndex ? "selected" : ""} ${index === focusedTrackIndex ? "focused" : ""}`}
+            onClick={() => {
+              setFocusedTrackIndex(index);
+              setContextMenu(null);
+            }}
+            onDoubleClick={() => onSelectTrack(index)}
+            onContextMenu={(event) => openContextMenu(event, index)}
+          >
             <span className="track-index">{index + 1}.</span>
             <span className="track-name">{track.artist} - {track.title}</span>
             <span className="track-time">{time(track.duration)}</span>
           </button>
         ))}
       </div>
+      {contextMenu && contextTrack && (
+        <div
+          className="popup-menu playlist-context-menu"
+          role="menu"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => event.stopPropagation()}
+        >
+          {contextActions.map((item, index) => (
+            <span key={item.id}>
+              {index > 0 && ["copy-title", "remove-spotify", "track-info"].includes(item.id) ? (
+                <span className="popup-separator" aria-hidden="true" />
+              ) : null}
+              <button
+                type="button"
+                role="menuitem"
+                disabled={item.disabled}
+                title={item.reason}
+                onClick={() => void runContextAction(item.id)}
+              >
+                {item.label}
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
       <div className="playlist-status">
         {spotifyError ? `SPOTIFY: ${spotifyError.toUpperCase()} · ` : ""}
         {editContext ? `${editContext} · ` : ""}
@@ -459,6 +651,34 @@ export function PlaylistEditor({
             </div>
             <div className="classic-dialog-actions">
               <button disabled={spotifyLoading} onClick={() => setSearchDialogOpen(false)}>CLOSE</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {trackInfo && (
+        <div
+          className="playlist-dialog-backdrop"
+          role="presentation"
+          onClick={() => setTrackInfo(null)}
+        >
+          <div
+            className="classic-dialog track-info-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="track-info-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div id="track-info-title" className="classic-dialog-title">TRACK INFO</div>
+            <div className="track-info-grid">
+              <span>Title:</span><strong>{trackInfo.title}</strong>
+              <span>Artist:</span><strong>{trackInfo.artist}</strong>
+              <span>Length:</span><strong>{time(trackInfo.duration)}</strong>
+              <span>Source:</span><strong>{trackInfo.source === "spotify" ? "SPOTIFY" : "LOCAL QUEUE"}</strong>
+              {trackInfo.uri ? <><span>URI:</span><strong className="track-info-uri">{trackInfo.uri}</strong></> : null}
+            </div>
+            <div className="classic-dialog-actions">
+              <button type="button" onClick={() => setTrackInfo(null)}>CLOSE</button>
             </div>
           </div>
         </div>

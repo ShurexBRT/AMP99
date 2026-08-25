@@ -10,6 +10,12 @@ import {
   usePreferences,
 } from "../preferences/preferencesStore";
 import type { Track, WindowId, WindowPosition } from "../types/player";
+import {
+  moveTrack,
+  moveTrackNext,
+  removeTrackAt,
+  type QueueMoveDirection,
+} from "./queueOperations";
 
 const STORAGE_KEY = "amp99.windowPositions.v1";
 const LAST_QUEUE_STORAGE_KEY = "amp99.lastQueue.v1";
@@ -153,6 +159,26 @@ export function useAmp99State() {
     setIsPlaying(false);
   }, []);
 
+  const removeTrack = useCallback((trackIndex: number) => {
+    const next = removeTrackAt(tracks, trackIndex, currentIndex);
+    setTracks(next.tracks);
+    setCurrentIndex(next.currentIndex);
+    setProgress(0);
+    setIsPlaying(false);
+  }, [currentIndex, tracks]);
+
+  const moveQueueTrack = useCallback((trackIndex: number, direction: QueueMoveDirection) => {
+    const next = moveTrack(tracks, trackIndex, direction, currentIndex);
+    setTracks(next.tracks);
+    setCurrentIndex(next.currentIndex);
+  }, [currentIndex, tracks]);
+
+  const playNextTrack = useCallback((trackIndex: number) => {
+    const next = moveTrackNext(tracks, trackIndex, currentIndex);
+    setTracks(next.tracks);
+    setCurrentIndex(next.currentIndex);
+  }, [currentIndex, tracks]);
+
   const previous = useCallback(() => {
     setCurrentIndex((index) => {
       if (tracks.length === 0) return 0;
@@ -196,6 +222,9 @@ export function useAmp99State() {
       setRepeat,
       setDoubleSize,
       replaceQueue,
+      removeTrack,
+      moveQueueTrack,
+      playNextTrack,
       previous,
       next,
     }),
@@ -215,6 +244,9 @@ export function useAmp99State() {
       doubleSize,
       setWindowPosition,
       replaceQueue,
+      removeTrack,
+      moveQueueTrack,
+      playNextTrack,
       previous,
       next,
     ],

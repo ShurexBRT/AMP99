@@ -278,6 +278,7 @@ function DefaultMainPlayer(props: Props) {
   const elapsedExact = (props.track.duration * props.progress) / 100;
   const elapsed = Math.round(elapsedExact);
   const spectrum = spectrumHeights(props.track, elapsedExact, props.isPlaying, 18, 20);
+  const streamLabel = props.track.source === "spotify" ? "SPOTIFY" : "LOCAL";
   return (
     <WindowFrame title="AMP99" position={props.position} width={275} height={116} onMove={props.onMove} className="main-player">
       <div className="main-body">
@@ -288,7 +289,7 @@ function DefaultMainPlayer(props: Props) {
           <div className="fake-spectrum" aria-hidden="true">
             {spectrum.map((height, index) => <i key={index} style={{ height, transition: "height 80ms linear" }} />)}
           </div>
-          <span className="stream-meta">SPOTIFY DEV</span>
+          <span className="stream-meta">{streamLabel}</span>
         </div>
 
         <input className="seek classic-range" type="range" min="0" max="100" value={props.progress} onInput={(e) => props.onProgress(Number(e.currentTarget.value))} onChange={() => undefined} aria-label="Seek" />
