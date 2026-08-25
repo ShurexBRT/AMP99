@@ -2,6 +2,12 @@ import { useRef, useState } from "react";
 import { useSkinManager } from "../skins/useSkinManager";
 import { checkForAmp99Update } from "../updates/githubUpdates";
 import { openOfficialAmp99Release } from "../updates/nativeUpdateLinks";
+import {
+  checkForNativeAmp99Update,
+  installNativeAmp99Update,
+} from "../updates/nativeUpdater";
+import { isTauri } from "@tauri-apps/api/core";
+import type { Update } from "@tauri-apps/plugin-updater";
 import { forgetNativeWindowPositions } from "../windowing/nativeWindowHost";
 import {
   hidePreferencesWindow,
@@ -95,6 +101,7 @@ export function PreferencesWindow() {
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [releaseUrl, setReleaseUrl] = useState<string | null>(null);
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
+  const [nativeUpdate, setNativeUpdate] = useState<Update | null>(null);
 
   const changePreference = (key: PreferenceKey, value: boolean) => {
     setPreference(key, value);
@@ -123,8 +130,17 @@ export function PreferencesWindow() {
     setCheckingUpdate(true);
     setReleaseUrl(null);
     setLatestVersion(null);
+    setNativeUpdate(null);
     setStatus("CHECKING FOR UPDATES...");
     try {
+      if (isTauri()) {
+        const update = await checkForNativeAmp99Update();
+        setNativeUpdate(update);
+        setLatestVersion(update?.version ?? null);
+        setStatus(update ? `UPDATE AVAILABLE: ${update.version.toUpperCase()}` : "AMP99 IS UP TO DATE");
+        return;
+      }
+
       const result = await checkForAmp99Update(version);
       if (result.status === "update-available") {
         setReleaseUrl(result.latest.releaseUrl);
@@ -139,6 +155,39 @@ export function PreferencesWindow() {
         error instanceof Error ? error.message.toUpperCase() : "UPDATE CHECK FAILED",
       );
     } finally {
+      setCheckingUpdate(false);
+    }
+  };
+
+  const installUpdate = async () => {
+    if (!nativeUpdate) return;
+    setCheckingUpdate(true);
+    setStatus(`DOWNLOADING AMP99 ${nativeUpdate.version.toUpperCase()}...`);
+    try {
+      await installNativeAmp99Update(nativeUpdate, (downloaded, contentLength) => {
+        if (contentLength) {
+          setStatus(
+            `DOWNLOADING ${Math.round((downloaded / contentLength) * 100)}%...`,
+          );
+        }
+      });
+    } catch (error) {
+      if (isTauri()) {
+        try {
+          const fallback = await checkForAmp99Update(version);
+          if (fallback.status === "update-available") {
+            setReleaseUrl(fallback.latest.releaseUrl);
+            setLatestVersion(fallback.latest.version);
+            setStatus("SIGNED UPDATE UNAVAILABLE — OPEN THE OFFICIAL RELEASE PAGE");
+            return;
+          }
+        } catch {
+          // Preserve the primary updater error below when the manual fallback is unavailable.
+        }
+      }
+      setStatus(
+        error instanceof Error ? error.message.toUpperCase() : "UPDATE INSTALL FAILED",
+      );
       setCheckingUpdate(false);
     }
   };
@@ -246,12 +295,19 @@ export function PreferencesWindow() {
                   OPEN RELEASE PAGE
                 </button>
               ) : null}
+              {nativeUpdate ? (
+                <button type="button" onClick={() => void installUpdate()} disabled={checkingUpdate}>
+                  INSTALL UPDATE
+                </button>
+              ) : null}
             </div>
             <small>
               {latestVersion
                 ? `Latest published AMP99 release: ${latestVersion}. `
                 : "Checks official AMP99 GitHub Releases. "}
-              Updates are never downloaded or installed automatically.
+              {isTauri()
+                ? "Updates are signed and downloaded only after you confirm installation."
+                : "Updates are never downloaded or installed automatically in browser mode."}
             </small>
           </fieldset>
 

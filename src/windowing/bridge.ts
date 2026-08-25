@@ -98,6 +98,89 @@ type BusEnvelope = MainRequestEnvelope | MainResponseEnvelope | SnapshotEnvelope
 
 let channel: BroadcastChannel | null = null;
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object";
+}
+
+function isWindowRole(value: unknown): value is Amp99NativeWindowRole {
+  return value === "main" || value === "equalizer" || value === "playlist";
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+const COMMAND_PAYLOAD_VALIDATORS: Record<
+  MainCommandName,
+  (value: unknown) => boolean
+> = {
+  togglePlay: (value) => value === undefined,
+  stop: (value) => value === undefined,
+  previous: (value) => value === undefined,
+  next: (value) => value === undefined,
+  setVolume: (value) => isFiniteNumber(value) && value >= 0 && value <= 100,
+  setBalance: (value) => isFiniteNumber(value) && value >= -100 && value <= 100,
+  setProgress: (value) => isFiniteNumber(value) && value >= 0 && value <= 100,
+  toggleShuffle: (value) => value === undefined,
+  toggleRepeat: (value) => value === undefined,
+  setDoubleSize: (value) => typeof value === "boolean",
+  setPlaylistVisible: (value) => typeof value === "boolean",
+  setEqualizerVisible: (value) => typeof value === "boolean",
+  selectTrack: (value) => Number.isInteger(value) && (value as number) >= 0,
+  connectSpotify: (value) => value === undefined,
+  disconnectSpotify: (value) => value === undefined,
+  refreshSpotify: (value) => value === undefined,
+  loadSpotifyPlaylist: (value) => isRecord(value) && typeof value.id === "string",
+  loadLikedSongs: (value) => value === undefined,
+  createSpotifyPlaylist: (value) =>
+    isRecord(value) &&
+    typeof value.name === "string" &&
+    typeof value.isPublic === "boolean",
+  searchSpotifyTracks: (value) =>
+    typeof value === "string" && value.trim().length > 0,
+  addSpotifyTrack: (value) => isRecord(value) && typeof value.id === "string",
+  removeSpotifyTrack: (value) => isRecord(value) && typeof value.id === "string",
+  moveSpotifyTrack: (value) => value === -1 || value === 1,
+  clearQueue: (value) => value === undefined,
+};
+
+function isValidCommandPayload(
+  command: MainCommandName,
+  payload: unknown,
+): boolean {
+  return COMMAND_PAYLOAD_VALIDATORS[command](payload);
+}
+
+function isRequestEnvelope(value: unknown): value is MainRequestEnvelope {
+  if (!isRecord(value) || value.kind !== "request") return false;
+  if (typeof value.id !== "string" || !isWindowRole(value.source)) return false;
+  if (
+    typeof value.command !== "string" ||
+    !Object.hasOwn(COMMAND_PAYLOAD_VALIDATORS, value.command)
+  ) {
+    return false;
+  }
+  return isValidCommandPayload(
+    value.command as MainCommandName,
+    value.payload,
+  );
+}
+
+function isSnapshotEnvelope(value: unknown): value is SnapshotEnvelope {
+  return isRecord(value) && value.kind === "snapshot" && isRecord(value.snapshot);
+}
+
+function isSkinEnvelope(value: unknown): value is SkinEnvelope {
+  if (!isRecord(value)) return false;
+  if (value.kind === "skin-reset") return true;
+  return (
+    value.kind === "skin-file" &&
+    typeof value.name === "string" &&
+    value.name.length > 0 &&
+    value.bytes instanceof ArrayBuffer
+  );
+}
+
 function getChannel(): BroadcastChannel | null {
   if (typeof BroadcastChannel === "undefined") return null;
   if (!channel) channel = new BroadcastChannel(CHANNEL_NAME);
@@ -122,7 +205,7 @@ export function subscribeMainSnapshot(
   if (!bus) return () => undefined;
 
   const onMessage = (event: MessageEvent<BusEnvelope>) => {
-    if (event.data?.kind === "snapshot") listener(event.data.snapshot);
+    if (isSnapshotEnvelope(event.data)) listener(event.data.snapshot);
   };
   bus.addEventListener("message", onMessage);
   return () => bus.removeEventListener("message", onMessage);
@@ -135,6 +218,9 @@ export async function requestMain<K extends MainCommandName>(
 ): Promise<MainCommandMap[K]["response"]> {
   const bus = getChannel();
   if (!bus) throw new Error("AMP99 inter-window channel is unavailable.");
+  if (!isWindowRole(source)) {
+    throw new Error("AMP99 rejected an invalid inter-window command source.");
+  }
 
   const id = requestId();
   const request: MainRequestEnvelope = {
@@ -144,6 +230,10 @@ export async function requestMain<K extends MainCommandName>(
     command,
     payload,
   };
+
+  if (!isValidCommandPayload(command, payload)) {
+    throw new Error(`AMP99 rejected an invalid ${String(command)} command payload.`);
+  }
 
   return new Promise<MainCommandMap[K]["response"]>((resolve, reject) => {
     const timeout = window.setTimeout(() => {
@@ -180,7 +270,18 @@ export function subscribeMainRequests(
 
   const onMessage = (event: MessageEvent<BusEnvelope>) => {
     const message = event.data;
-    if (message?.kind !== "request") return;
+    if (!isRequestEnvelope(message)) {
+      const invalidMessage = message as unknown as Record<string, unknown>;
+      if (isRecord(invalidMessage) && invalidMessage.kind === "request" && typeof invalidMessage.id === "string") {
+        bus.postMessage({
+          kind: "response",
+          id: invalidMessage.id,
+          ok: false,
+          error: "AMP99 rejected an invalid inter-window command.",
+        } satisfies MainResponseEnvelope);
+      }
+      return;
+    }
 
     void handler({
       source: message.source,
@@ -226,7 +327,8 @@ export function subscribeSkinSync(
 
   const onMessage = (event: MessageEvent<BusEnvelope>) => {
     const message = event.data;
-    if (message?.kind === "skin-file") {
+    if (!isSkinEnvelope(message)) return;
+    if (message.kind === "skin-file") {
       listener({ type: "file", name: message.name, bytes: message.bytes });
     } else if (message?.kind === "skin-reset") {
       listener({ type: "reset" });

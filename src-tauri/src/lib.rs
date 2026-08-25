@@ -1,4 +1,5 @@
 mod update_links;
+mod secure_storage;
 
 use std::{
     io::{ErrorKind, Read, Write},
@@ -20,6 +21,10 @@ use tauri::{
 };
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use update_links::open_official_amp99_release;
+use secure_storage::{
+    delete_secure_spotify_session, read_secure_spotify_session,
+    write_secure_spotify_session,
+};
 
 const MAX_SKIN_BYTES: u64 = 16 * 1024 * 1024;
 const OPEN_SKIN_EVENT: &str = "amp99://open-skin";
@@ -387,6 +392,8 @@ fn register_media_shortcuts(app: &tauri::AppHandle) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         // Keep single-instance first: secondary launches are used by .wsz file association.
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             if let Some(path) = find_wsz_arg(&args) {
@@ -404,7 +411,10 @@ pub fn run() {
             start_spotify_oauth,
             set_group_always_on_top_preference,
             open_official_amp99_release,
-            show_preferences_window
+            show_preferences_window,
+            read_secure_spotify_session,
+            write_secure_spotify_session,
+            delete_secure_spotify_session
         ])
         .setup(|app| {
             if let Some(path) = find_wsz_arg(&std::env::args().collect::<Vec<_>>()) {

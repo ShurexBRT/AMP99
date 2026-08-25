@@ -64,11 +64,23 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; connect-src 'self' https://api.spotify.com https://accounts.spotify.com https://api.github.com https://*.spotify.com https://*.scdn.co wss://*.spotify.com wss://*.scdn.co; script-src 'self' https://sdk.scdn.co; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://i.scdn.co https://mosaic.scdn.co https://image-cdn-ak.spotifycdn.com https://*.scdn.co; media-src 'self' blob: https://*.scdn.co https://*.spotifycdn.com; font-src 'self' data:; object-src 'none'; base-uri 'self';"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "__AMP99_UPDATER_PUBLIC_KEY__",
+      "endpoints": [
+        "https://github.com/ShurexBRT/AMP99/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
     }
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": "all",
     "category": "Music",
     "publisher": "Predrag Jovanovic",

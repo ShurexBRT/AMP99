@@ -30,8 +30,8 @@ type Options = {
   initialVolume: number;
 };
 
-function hasPlaybackScopes(): boolean {
-  const session = getStoredSpotifySession();
+async function hasPlaybackScopes(): Promise<boolean> {
+  const session = await getStoredSpotifySession();
   if (!session) return false;
 
   const granted = new Set(session.scope.split(/\s+/).filter(Boolean));
@@ -78,17 +78,17 @@ export function useSpotifyPlayback({ enabled, initialVolume }: Options) {
       return;
     }
 
-    if (!hasPlaybackScopes()) {
-      setConnected(false);
-      setError("Reconnect Spotify to grant AMP99 playback permissions.");
-      return;
-    }
-
     let disposed = false;
     let player: SpotifyWebPlaybackPlayer | null = null;
 
     const initialize = async () => {
       try {
+        if (!(await hasPlaybackScopes())) {
+          setConnected(false);
+          setError("Reconnect Spotify to grant AMP99 playback permissions.");
+          return;
+        }
+
         const Player = await loadSpotifyWebPlaybackSdk();
         if (disposed) return;
 
