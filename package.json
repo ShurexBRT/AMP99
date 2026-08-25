@@ -33,6 +33,7 @@
     "vitest": "4.1.11"
   },
   "optionalDependencies": {
+    "lightningcss-linux-x64-gnu": "1.33.0",
     "@rolldown/binding-linux-x64-gnu": "1.2.5",
     "@typescript/typescript-linux-x64": "7.0.2"
   }
