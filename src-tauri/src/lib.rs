@@ -570,6 +570,7 @@ fn watch_main_window_lifecycle(app: &tauri::AppHandle) {
     thread::spawn(move || {
         let mut was_minimized = None;
         let mut was_visible = None;
+        let mut last_docked_auxiliary_roles: Vec<&'static str> = Vec::new();
 
         loop {
             let Some(main) = handle.get_webview_window("main") else {
@@ -583,8 +584,20 @@ fn watch_main_window_lifecycle(app: &tauri::AppHandle) {
             let restored_from_minimize = was_minimized == Some(true) && !minimized;
             let restored_from_hidden = was_visible == Some(false) && visible;
 
+            if !minimized {
+                let currently_docked = docked_auxiliary_roles(&handle);
+                if !currently_docked.is_empty() {
+                    last_docked_auxiliary_roles = currently_docked;
+                }
+            }
+
             if minimized_from_native {
-                for role in docked_auxiliary_roles(&handle) {
+                let roles = if last_docked_auxiliary_roles.is_empty() {
+                    docked_auxiliary_roles(&handle)
+                } else {
+                    last_docked_auxiliary_roles.clone()
+                };
+                for role in roles {
                     if let Some(window) = handle.get_webview_window(role) {
                         let _ = window.minimize();
                     }
