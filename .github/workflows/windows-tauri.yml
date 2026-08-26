@@ -178,6 +178,9 @@ jobs:
               [DllImport("user32.dll")] private static extern bool EnumWindows(EnumWindowsProc callback, IntPtr lParam);
               [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
               [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr hWnd);
+              [DllImport("user32.dll")] private static extern bool IsIconic(IntPtr hWnd);
+              [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr hWnd, int command);
+              [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hWnd);
               [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int maxCount);
               [DllImport("user32.dll")] private static extern int GetWindowTextLength(IntPtr hWnd);
               public static string[] VisibleTitlesForProcess(int processId) {
@@ -194,6 +197,41 @@ jobs:
                       return true;
                   }, IntPtr.Zero);
                   return titles.ToArray();
+              }
+
+              public static IntPtr WindowForProcess(int processId, string expectedTitle) {
+                  IntPtr result = IntPtr.Zero;
+                  EnumWindows((hWnd, lParam) => {
+                      uint pid;
+                      GetWindowThreadProcessId(hWnd, out pid);
+                      if (pid != processId) return true;
+
+                      var length = GetWindowTextLength(hWnd);
+                      var builder = new StringBuilder(length + 1);
+                      GetWindowText(hWnd, builder, builder.Capacity);
+                      if (builder.ToString() == expectedTitle) {
+                          result = hWnd;
+                          return false;
+                      }
+                      return true;
+                  }, IntPtr.Zero);
+                  return result;
+              }
+
+              public static void Minimize(IntPtr hWnd) {
+                  if (hWnd != IntPtr.Zero) ShowWindow(hWnd, 6);
+              }
+
+              public static void Restore(IntPtr hWnd) {
+                  if (hWnd != IntPtr.Zero) ShowWindow(hWnd, 9);
+              }
+
+              public static bool IsRestored(IntPtr hWnd) {
+                  return hWnd != IntPtr.Zero && IsWindowVisible(hWnd) && !IsIconic(hWnd);
+              }
+
+              public static void Focus(IntPtr hWnd) {
+                  if (hWnd != IntPtr.Zero) SetForegroundWindow(hWnd);
               }
           }
           "@
@@ -274,6 +312,41 @@ jobs:
           Write-SmokeLog "Launching installed executable: $installedExe"
           $process = Start-Process -FilePath $installedExe -PassThru
           Wait-Amp99InstalledWindows $process
+
+          $mainTitle = "AMP99 — Play it like it's 1999"
+          $equalizerTitle = "AMP99 Equalizer"
+          $playlistTitle = "AMP99 Playlist Editor"
+          $mainHandle = [Amp99InstalledWindowProbe]::WindowForProcess($process.Id, $mainTitle)
+          $equalizerHandle = [Amp99InstalledWindowProbe]::WindowForProcess($process.Id, $equalizerTitle)
+          $playlistHandle = [Amp99InstalledWindowProbe]::WindowForProcess($process.Id, $playlistTitle)
+          if ($mainHandle -eq [IntPtr]::Zero -or $equalizerHandle -eq [IntPtr]::Zero -or $playlistHandle -eq [IntPtr]::Zero) {
+            throw "Could not identify all three AMP99 native windows for minimize/restore smoke test."
+          }
+
+          Write-SmokeLog "Testing native auxiliary restore after Main minimize"
+          [Amp99InstalledWindowProbe]::Minimize($mainHandle)
+          [Amp99InstalledWindowProbe]::Minimize($equalizerHandle)
+          [Amp99InstalledWindowProbe]::Minimize($playlistHandle)
+          Start-Sleep -Milliseconds 500
+          [Amp99InstalledWindowProbe]::Restore($mainHandle)
+          [Amp99InstalledWindowProbe]::Focus($mainHandle)
+
+          $restoreDeadline = (Get-Date).AddSeconds(10)
+          do {
+            if ([Amp99InstalledWindowProbe]::IsRestored($mainHandle) -and
+                [Amp99InstalledWindowProbe]::IsRestored($equalizerHandle) -and
+                [Amp99InstalledWindowProbe]::IsRestored($playlistHandle)) {
+              Write-SmokeLog "PASS Main minimize/restore returned Main, EQ and Playlist"
+              break
+            }
+            Start-Sleep -Milliseconds 250
+          } while ((Get-Date) -lt $restoreDeadline)
+
+          if (-not ([Amp99InstalledWindowProbe]::IsRestored($mainHandle) -and
+                    [Amp99InstalledWindowProbe]::IsRestored($equalizerHandle) -and
+                    [Amp99InstalledWindowProbe]::IsRestored($playlistHandle))) {
+            throw "Main minimize/restore did not return all visible auxiliary windows."
+          }
 
           $testSkin = Join-Path $env:RUNNER_TEMP "amp99-single-instance-smoke.wsz"
           Set-Content -Path $testSkin -Value "AMP99 invalid test archive: native handoff only" -NoNewline
