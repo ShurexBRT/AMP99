@@ -266,6 +266,7 @@ export async function setNativeWindowVisible(
   const target = await WebviewWindow.getByLabel(role);
   if (!target) return;
   if (visible) {
+    await target.unminimize().catch(() => undefined);
     await target.show();
     await target.setFocus();
   } else {
@@ -500,11 +501,11 @@ export async function installNativeWindowHost(
 
   let lastKnownPosition = await current.outerPosition();
 
-  const onMainFocus = () => {
-    if (role === "main") void restoreAuxVisibility(false);
-  };
+  let unlistenFocused: (() => void) | undefined;
   if (role === "main") {
-    window.addEventListener("focus", onMainFocus);
+    unlistenFocused = await current.onFocusChanged(({ payload }) => {
+      if (payload) void restoreAuxVisibility(false);
+    });
     await restoreAuxVisibility(true);
     if (preferences.startMinimized) await hidePlayerWindowGroup();
   }
@@ -599,6 +600,6 @@ export async function installNativeWindowHost(
   return () => {
     unlistenResized();
     unlistenMoved();
-    if (role === "main") window.removeEventListener("focus", onMainFocus);
+    unlistenFocused?.();
   };
 }
