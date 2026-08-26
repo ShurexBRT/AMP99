@@ -42,10 +42,12 @@ The packaged Tauri build uses **three real native Windows windows**:
 
 ```text
 AMP99 process
-├── main        275 × 116   Main Player
+├── main        330 × 116   Main Player (default skin; user-resizable)
 ├── equalizer   275 × 116   Equalizer
 └── playlist    275 × 232   Playlist Editor
 ```
+
+The default Main Player can be resized between 330×116 and 660×320. Its dimensions are remembered between launches; user-supplied legacy `.wsz` Main skins retain their classic 275×116 geometry.
 
 These are not React panels drawn inside one large host canvas.
 
@@ -86,6 +88,7 @@ Windows CI explicitly enumerates Win32 top-level windows for the AMP99 process a
 | Native dragging / snapping | **Implemented / physically tested** | Independent aux movement + Main-root dock group movement |
 | Position persistence | **Implemented** | Native window positions are remembered |
 | Playlist resize | **Implemented / physically tested** | Mouse resize with persisted dimensions |
+| Main resize | **Implemented / CI-gated** | Default Main resize grip with persisted dimensions; legacy `.wsz` Main geometry remains fixed |
 | Shade / active states | **Implemented foundation** | Native resize + classic skin states |
 | 1× / 2× | **Implemented foundation** | Native dimensions + pixel scaling |
 | `.wsz` loading | **Implemented / hardened / physically tested** | Validation, limits, path-traversal protection |
@@ -118,6 +121,7 @@ AMP99 currently includes:
 - Playlist Editor;
 - play / pause / stop / previous / next;
 - realtime elapsed-time display;
+- click the time display to toggle elapsed and remaining time;
 - seek;
 - realtime volume;
 - balance UI;
