@@ -345,6 +345,30 @@ jobs:
             throw "AMP99 native windows did not settle into the expected Main -> EQ / Playlist docked layout."
           }
 
+          Add-Type -AssemblyName UIAutomationClient
+          Add-Type -AssemblyName UIAutomationTypes
+          function Invoke-Amp99MinimizeButton([System.IntPtr]$mainHandle) {
+            $root = [System.Windows.Automation.AutomationElement]::FromHandle($mainHandle)
+            $buttonCondition = [System.Windows.Automation.PropertyCondition]::new(
+              [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+              [System.Windows.Automation.ControlType]::Button
+            )
+            $buttons = $root.FindAll(
+              [System.Windows.Automation.TreeScope]::Descendants,
+              $buttonCondition
+            )
+            foreach ($button in $buttons) {
+              if ($button.Current.Name -ne "Minimize AMP99") { continue }
+              $invoke = $button.GetCurrentPattern(
+                [System.Windows.Automation.InvokePattern]::Pattern
+              )
+              $invoke.Invoke()
+              return
+            }
+
+            throw "AMP99 Main minimize control was not found through Windows UI Automation."
+          }
+
           $msi = Get-ChildItem -Path "src-tauri/target/release/bundle/msi" -Filter "*.msi" -File | Select-Object -First 1
           if (-not $msi) {
             Write-SmokeLog "FAIL no MSI bundle was produced"
@@ -384,27 +408,9 @@ jobs:
           Write-SmokeLog "PASS .wsz file association is registered"
 
           $env:AMP99_SMOKE_ALWAYS_ON_TOP = "1"
-          $env:AMP99_WEBVIEW_DEBUG_PORT = "9222"
-          $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9222 --remote-allow-origins=*"
-          Write-SmokeLog "Launching installed executable with native Always on Top and WebView2 smoke flags: $installedExe"
+          Write-SmokeLog "Launching installed executable with native Always on Top smoke flag: $installedExe"
           $process = Start-Process -FilePath $installedExe -PassThru
           Wait-Amp99InstalledWindows $process
-
-          $debugDeadline = (Get-Date).AddSeconds(20)
-          do {
-            try {
-              Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:9222/json/version" -TimeoutSec 2 | Out-Null
-              break
-            } catch {
-              Start-Sleep -Milliseconds 250
-            }
-          } while ((Get-Date) -lt $debugDeadline)
-
-          try {
-            Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:9222/json/version" -TimeoutSec 2 | Out-Null
-          } catch {
-            throw "AMP99 WebView2 remote debugging endpoint did not become available."
-          }
 
           $mainTitle = "AMP99 — Play it like it's 1999"
           $equalizerTitle = "AMP99 Equalizer"
@@ -474,7 +480,7 @@ jobs:
           Write-SmokeLog "PASS moving Main moved the docked EQ/Playlist group"
 
           Write-SmokeLog "Testing native group minimize through AMP99 Main minimize control"
-          node scripts/native-ui-smoke.mjs
+          Invoke-Amp99MinimizeButton $mainHandle
           $minimizeDeadline = (Get-Date).AddSeconds(10)
           do {
             if ([Amp99InstalledWindowProbe]::IsMinimized($mainHandle) -and
