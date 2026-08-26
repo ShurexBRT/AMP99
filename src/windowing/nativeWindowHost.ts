@@ -192,6 +192,10 @@ async function restoreAuxVisibility(startup = false): Promise<void> {
         }
       }),
     );
+    // Showing/unminimizing an auxiliary native window can change its z-order.
+    // Reapply the native group state after both windows have been restored so
+    // docked EQ/Playlist inherit Main's Always on Top setting.
+    await invoke("reapply_group_always_on_top").catch(() => undefined);
   })();
 
   auxRestoreInFlight = restore;
@@ -343,6 +347,7 @@ export async function setNativeWindowVisible(
   if (visible) {
     await target.unminimize().catch(() => undefined);
     await target.show();
+    await invoke("reapply_group_always_on_top").catch(() => undefined);
     await target.setFocus();
   } else {
     await target.hide();
@@ -524,6 +529,10 @@ async function moveDockedGroupWithMain(
         savePosition(geometry.role, next);
       }),
     );
+  }
+
+  if (docked.length > 0) {
+    await invoke("reapply_group_always_on_top").catch(() => undefined);
   }
 
   return finalMainPosition;
