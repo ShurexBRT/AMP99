@@ -2,6 +2,7 @@ mod update_links;
 mod secure_storage;
 
 use std::{
+    collections::HashMap,
     io::{ErrorKind, Read, Write},
     net::{TcpListener, TcpStream},
     path::{Path, PathBuf},
@@ -30,6 +31,7 @@ const MAX_SKIN_BYTES: u64 = 16 * 1024 * 1024;
 const OPEN_SKIN_EVENT: &str = "amp99://open-skin";
 const MEDIA_KEY_EVENT: &str = "amp99://media-key";
 const ALWAYS_ON_TOP_EVENT: &str = "amp99://always-on-top-changed";
+const MAIN_RESTORED_EVENT: &str = "amp99://main-restored";
 const SPOTIFY_OAUTH_EVENT: &str = "amp99://spotify-oauth-callback";
 const SPOTIFY_AUTHORIZE_PREFIX: &str = "https://accounts.spotify.com/authorize";
 const SPOTIFY_CALLBACK_BIND: &str = "127.0.0.1:43821";
@@ -45,6 +47,9 @@ struct AlwaysOnTop(AtomicBool);
 
 #[derive(Default)]
 struct SpotifyOAuthInFlight(AtomicBool);
+
+#[derive(Default)]
+struct AuxiliaryVisibility(Mutex<HashMap<String, bool>>);
 
 fn is_wsz_path(path: &Path) -> bool {
     path.extension()
@@ -389,6 +394,73 @@ fn register_media_shortcuts(app: &tauri::AppHandle) {
     }
 }
 
+fn restore_native_auxiliary_windows(app: &tauri::AppHandle) {
+    let visibility = app
+        .state::<AuxiliaryVisibility>()
+        .0
+        .lock()
+        .map(|state| state.clone())
+        .unwrap_or_default();
+
+    for role in ["equalizer", "playlist"] {
+        let Some(window) = app.get_webview_window(role) else {
+            continue;
+        };
+        if visibility.get(role).copied().unwrap_or(true) {
+            let _ = window.show();
+            let _ = window.unminimize();
+        } else {
+            let _ = window.hide();
+        }
+    }
+}
+
+#[tauri::command]
+fn set_native_auxiliary_visibility(
+    role: String,
+    visible: bool,
+    state: tauri::State<'_, AuxiliaryVisibility>,
+) -> Result<(), String> {
+    if role != "equalizer" && role != "playlist" {
+        return Err(format!("Unknown AMP99 auxiliary window role: {role}"));
+    }
+    state
+        .0
+        .lock()
+        .map_err(|_| "AMP99 auxiliary visibility state is unavailable".to_string())?
+        .insert(role, visible);
+    Ok(())
+}
+
+fn watch_main_window_lifecycle(app: &tauri::AppHandle) {
+    let handle = app.clone();
+    thread::spawn(move || {
+        let mut was_minimized = None;
+        let mut was_visible = None;
+
+        loop {
+            let Some(main) = handle.get_webview_window("main") else {
+                thread::sleep(Duration::from_millis(250));
+                continue;
+            };
+
+            let minimized = main.is_minimized().unwrap_or(false);
+            let visible = main.is_visible().unwrap_or(true);
+            let restored_from_minimize = was_minimized == Some(true) && !minimized;
+            let restored_from_hidden = was_visible == Some(false) && visible;
+
+            if restored_from_minimize || restored_from_hidden {
+                restore_native_auxiliary_windows(&handle);
+                let _ = handle.emit(MAIN_RESTORED_EVENT, ());
+            }
+
+            was_minimized = Some(minimized);
+            was_visible = Some(visible);
+            thread::sleep(Duration::from_millis(150));
+        }
+    });
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -405,11 +477,13 @@ pub fn run() {
         .manage(PendingSkin::default())
         .manage(AlwaysOnTop::default())
         .manage(SpotifyOAuthInFlight::default())
+        .manage(AuxiliaryVisibility::default())
         .invoke_handler(tauri::generate_handler![
             take_pending_skin,
             read_skin_file,
             start_spotify_oauth,
             set_group_always_on_top_preference,
+            set_native_auxiliary_visibility,
             open_official_amp99_release,
             show_preferences_window,
             read_secure_spotify_session,
@@ -424,6 +498,7 @@ pub fn run() {
             }
             create_tray(app.handle())?;
             register_media_shortcuts(app.handle());
+            watch_main_window_lifecycle(app.handle());
             Ok(())
         })
         .run(tauri::generate_context!())
