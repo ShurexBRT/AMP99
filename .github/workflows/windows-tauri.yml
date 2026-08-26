@@ -181,11 +181,22 @@ jobs:
               [DllImport("user32.dll")] private static extern bool IsIconic(IntPtr hWnd);
               [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr hWnd, int command);
               [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hWnd);
+              [DllImport("user32.dll", SetLastError = true)] private static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
+              [DllImport("user32.dll", SetLastError = true)] private static extern bool SetWindowPos(IntPtr hWnd, IntPtr insertAfter, int x, int y, int width, int height, uint flags);
               [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] private static extern IntPtr GetWindowLongPtr(IntPtr hWnd, int index);
               [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int maxCount);
               [DllImport("user32.dll")] private static extern int GetWindowTextLength(IntPtr hWnd);
+              [StructLayout(LayoutKind.Sequential)] private struct RECT {
+                  public int Left;
+                  public int Top;
+                  public int Right;
+                  public int Bottom;
+              }
               private const int GWL_EXSTYLE = -20;
               private const long WS_EX_TOPMOST = 0x00000008L;
+              private const uint SWP_NOSIZE = 0x0001;
+              private const uint SWP_NOZORDER = 0x0004;
+              private const uint SWP_NOACTIVATE = 0x0010;
               public static string[] VisibleTitlesForProcess(int processId) {
                   var titles = new List<string>();
                   EnumWindows((hWnd, lParam) => {
@@ -237,6 +248,26 @@ jobs:
                   if (hWnd != IntPtr.Zero) SetForegroundWindow(hWnd);
               }
 
+              public static int[] Position(IntPtr hWnd) {
+                  RECT rect;
+                  if (hWnd == IntPtr.Zero || !GetWindowRect(hWnd, out rect)) return new[] { Int32.MinValue, Int32.MinValue };
+                  return new[] { rect.Left, rect.Top };
+              }
+
+              public static int[] Size(IntPtr hWnd) {
+                  RECT rect;
+                  if (hWnd == IntPtr.Zero || !GetWindowRect(hWnd, out rect)) return new[] { 0, 0 };
+                  return new[] { rect.Right - rect.Left, rect.Bottom - rect.Top };
+              }
+
+              public static void Move(IntPtr hWnd, int x, int y) {
+                  if (hWnd != IntPtr.Zero) SetWindowPos(hWnd, IntPtr.Zero, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+              }
+
+              public static bool IsMinimized(IntPtr hWnd) {
+                  return hWnd != IntPtr.Zero && IsIconic(hWnd);
+              }
+
               public static bool IsTopMost(IntPtr hWnd) {
                   return hWnd != IntPtr.Zero && (GetWindowLongPtr(hWnd, GWL_EXSTYLE).ToInt64() & WS_EX_TOPMOST) != 0;
               }
@@ -276,6 +307,42 @@ jobs:
 
             Write-SmokeLog "FAIL installed native windows did not become ready within $timeoutSeconds seconds. Missing: $($missing -join ', '); found: $($titles -join ', ')"
             throw "Installed AMP99 native windows did not become ready within $timeoutSeconds seconds."
+          }
+
+          function Test-Amp99DockedLayout(
+            [System.IntPtr]$mainHandle,
+            [System.IntPtr]$equalizerHandle,
+            [System.IntPtr]$playlistHandle
+          ) {
+            $main = [Amp99InstalledWindowProbe]::Position($mainHandle)
+            $equalizer = [Amp99InstalledWindowProbe]::Position($equalizerHandle)
+            $playlist = [Amp99InstalledWindowProbe]::Position($playlistHandle)
+            $mainSize = [Amp99InstalledWindowProbe]::Size($mainHandle)
+            $tolerance = 2
+
+            return (
+              [Math]::Abs($equalizer[0] - $main[0]) -le $tolerance -and
+              [Math]::Abs($equalizer[1] - ($main[1] + $mainSize[1])) -le $tolerance -and
+              [Math]::Abs($playlist[0] - ($main[0] + $mainSize[0])) -le $tolerance -and
+              [Math]::Abs($playlist[1] - $main[1]) -le $tolerance
+            )
+          }
+
+          function Wait-Amp99DockedLayout(
+            [System.IntPtr]$mainHandle,
+            [System.IntPtr]$equalizerHandle,
+            [System.IntPtr]$playlistHandle,
+            [int]$timeoutSeconds = 10
+          ) {
+            $deadline = (Get-Date).AddSeconds($timeoutSeconds)
+            do {
+              if (Test-Amp99DockedLayout $mainHandle $equalizerHandle $playlistHandle) {
+                return
+              }
+              Start-Sleep -Milliseconds 250
+            } while ((Get-Date) -lt $deadline)
+
+            throw "AMP99 native windows did not settle into the expected Main -> EQ / Playlist docked layout."
           }
 
           $msi = Get-ChildItem -Path "src-tauri/target/release/bundle/msi" -Filter "*.msi" -File | Select-Object -First 1
@@ -348,11 +415,65 @@ jobs:
             throw "Native Always on Top was not applied to all three AMP99 windows."
           }
 
-          Write-SmokeLog "Testing native auxiliary restore after Main minimize"
+          Write-SmokeLog "Arranging Main, Equalizer and Playlist into the documented docked layout"
+          $mainSize = [Amp99InstalledWindowProbe]::Size($mainHandle)
+          $layoutX = 120
+          $layoutY = 120
+          [Amp99InstalledWindowProbe]::Move($mainHandle, $layoutX, $layoutY)
+          Start-Sleep -Milliseconds 300
+          [Amp99InstalledWindowProbe]::Move($equalizerHandle, $layoutX, $layoutY + $mainSize[1])
+          [Amp99InstalledWindowProbe]::Move($playlistHandle, $layoutX + $mainSize[0], $layoutY)
+          Wait-Amp99DockedLayout $mainHandle $equalizerHandle $playlistHandle
+          Write-SmokeLog "PASS native windows are docked around Main"
+
+          $beforeMoveMain = [Amp99InstalledWindowProbe]::Position($mainHandle)
+          $beforeMoveEqualizer = [Amp99InstalledWindowProbe]::Position($equalizerHandle)
+          $beforeMovePlaylist = [Amp99InstalledWindowProbe]::Position($playlistHandle)
+          $deltaX = 48
+          $deltaY = 24
+          Write-SmokeLog "Moving Main by ($deltaX, $deltaY) to verify docked group movement"
+          [Amp99InstalledWindowProbe]::Move($mainHandle, $beforeMoveMain[0] + $deltaX, $beforeMoveMain[1] + $deltaY)
+          $moveDeadline = (Get-Date).AddSeconds(10)
+          do {
+            $mainPosition = [Amp99InstalledWindowProbe]::Position($mainHandle)
+            $equalizerPosition = [Amp99InstalledWindowProbe]::Position($equalizerHandle)
+            $playlistPosition = [Amp99InstalledWindowProbe]::Position($playlistHandle)
+            $groupMoved = (
+              [Math]::Abs($mainPosition[0] - ($beforeMoveMain[0] + $deltaX)) -le 2 -and
+              [Math]::Abs($mainPosition[1] - ($beforeMoveMain[1] + $deltaY)) -le 2 -and
+              [Math]::Abs($equalizerPosition[0] - ($beforeMoveEqualizer[0] + $deltaX)) -le 2 -and
+              [Math]::Abs($equalizerPosition[1] - ($beforeMoveEqualizer[1] + $deltaY)) -le 2 -and
+              [Math]::Abs($playlistPosition[0] - ($beforeMovePlaylist[0] + $deltaX)) -le 2 -and
+              [Math]::Abs($playlistPosition[1] - ($beforeMovePlaylist[1] + $deltaY)) -le 2
+            )
+            if ($groupMoved) { break }
+            Start-Sleep -Milliseconds 250
+          } while ((Get-Date) -lt $moveDeadline)
+
+          if (-not $groupMoved) {
+            throw "Moving Main did not move the docked Equalizer and Playlist by the same delta."
+          }
+          Write-SmokeLog "PASS moving Main moved the docked EQ/Playlist group"
+
+          Write-SmokeLog "Testing native group minimize through the Main HWND"
           [Amp99InstalledWindowProbe]::Minimize($mainHandle)
-          [Amp99InstalledWindowProbe]::Minimize($equalizerHandle)
-          [Amp99InstalledWindowProbe]::Minimize($playlistHandle)
-          Start-Sleep -Milliseconds 500
+          $minimizeDeadline = (Get-Date).AddSeconds(10)
+          do {
+            if ([Amp99InstalledWindowProbe]::IsMinimized($mainHandle) -and
+                [Amp99InstalledWindowProbe]::IsMinimized($equalizerHandle) -and
+                [Amp99InstalledWindowProbe]::IsMinimized($playlistHandle)) {
+              Write-SmokeLog "PASS minimizing Main minimized the docked EQ/Playlist group"
+              break
+            }
+            Start-Sleep -Milliseconds 250
+          } while ((Get-Date) -lt $minimizeDeadline)
+
+          if (-not ([Amp99InstalledWindowProbe]::IsMinimized($mainHandle) -and
+                    [Amp99InstalledWindowProbe]::IsMinimized($equalizerHandle) -and
+                    [Amp99InstalledWindowProbe]::IsMinimized($playlistHandle))) {
+            throw "Minimizing Main did not minimize the docked Equalizer and Playlist windows."
+          }
+
           [Amp99InstalledWindowProbe]::Restore($mainHandle)
           [Amp99InstalledWindowProbe]::Focus($mainHandle)
 
@@ -372,6 +493,8 @@ jobs:
                     [Amp99InstalledWindowProbe]::IsRestored($playlistHandle))) {
             throw "Main minimize/restore did not return all visible auxiliary windows."
           }
+          Wait-Amp99DockedLayout $mainHandle $equalizerHandle $playlistHandle
+          Write-SmokeLog "PASS Main restore returned the docked group without losing layout"
 
           if (-not ([Amp99InstalledWindowProbe]::IsTopMost($mainHandle) -and
                     [Amp99InstalledWindowProbe]::IsTopMost($equalizerHandle) -and
