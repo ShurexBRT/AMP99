@@ -1,4 +1,4 @@
-import { isTauri } from "@tauri-apps/api/core";
+import { invoke, isTauri } from "@tauri-apps/api/core";
 import { LogicalSize, PhysicalPosition } from "@tauri-apps/api/dpi";
 import {
   getAllWebviewWindows,
@@ -157,6 +157,9 @@ function saveAuxVisibility(
   } catch {
     // Visibility persistence must never block window controls.
   }
+  if (isTauri()) {
+    void invoke("set_native_auxiliary_visibility", { role, visible }).catch(() => undefined);
+  }
 }
 
 async function restoreAuxVisibility(startup = false): Promise<void> {
@@ -175,6 +178,9 @@ async function restoreAuxVisibility(startup = false): Promise<void> {
             ? preferences.restoreEqualizerOnStartup
             : preferences.restorePlaylistOnStartup;
         const visible = startup ? startupEnabled && saved[role] : saved[role];
+        if (isTauri()) {
+          void invoke("set_native_auxiliary_visibility", { role, visible }).catch(() => undefined);
+        }
         if (visible) {
           // A hidden native window can reject unminimize(). Show it first, then
           // clear a possible minimized state. One broken auxiliary window must
