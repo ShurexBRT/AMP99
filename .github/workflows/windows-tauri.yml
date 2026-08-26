@@ -384,9 +384,27 @@ jobs:
           Write-SmokeLog "PASS .wsz file association is registered"
 
           $env:AMP99_SMOKE_ALWAYS_ON_TOP = "1"
-          Write-SmokeLog "Launching installed executable with native Always on Top smoke flag: $installedExe"
+          $env:AMP99_WEBVIEW_DEBUG_PORT = "9222"
+          $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9222 --remote-allow-origins=*"
+          Write-SmokeLog "Launching installed executable with native Always on Top and WebView2 smoke flags: $installedExe"
           $process = Start-Process -FilePath $installedExe -PassThru
           Wait-Amp99InstalledWindows $process
+
+          $debugDeadline = (Get-Date).AddSeconds(20)
+          do {
+            try {
+              Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:9222/json/version" -TimeoutSec 2 | Out-Null
+              break
+            } catch {
+              Start-Sleep -Milliseconds 250
+            }
+          } while ((Get-Date) -lt $debugDeadline)
+
+          try {
+            Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:9222/json/version" -TimeoutSec 2 | Out-Null
+          } catch {
+            throw "AMP99 WebView2 remote debugging endpoint did not become available."
+          }
 
           $mainTitle = "AMP99 — Play it like it's 1999"
           $equalizerTitle = "AMP99 Equalizer"
@@ -455,8 +473,8 @@ jobs:
           }
           Write-SmokeLog "PASS moving Main moved the docked EQ/Playlist group"
 
-          Write-SmokeLog "Testing native group minimize after minimizing Main only"
-          [Amp99InstalledWindowProbe]::Minimize($mainHandle)
+          Write-SmokeLog "Testing native group minimize through AMP99 Main minimize control"
+          node scripts/native-ui-smoke.mjs
           $minimizeDeadline = (Get-Date).AddSeconds(10)
           do {
             if ([Amp99InstalledWindowProbe]::IsMinimized($mainHandle) -and
