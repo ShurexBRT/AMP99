@@ -501,7 +501,10 @@ fn docked_auxiliary_roles(app: &tauri::AppHandle) -> Vec<&'static str> {
         let Some(window) = app.get_webview_window(label) else {
             continue;
         };
-        if !window.is_visible().unwrap_or(false) {
+        // A native minimize can make Tauri report Main as not visible even
+        // though it remains the group anchor. Keep Main in the geometry graph
+        // so the docked auxiliary windows can inherit the same transition.
+        if label != "main" && !window.is_visible().unwrap_or(false) {
             continue;
         }
         let Some(geometry) = native_window_geometry(&window) else {
