@@ -140,11 +140,16 @@ jobs:
           $setup = Get-ChildItem 'src-tauri/target/release/bundle/nsis/*-setup.exe' | Select-Object -First 1
           $setupSignature = Get-Item "$($setup.FullName).sig"
           $msiSignature = Get-Item "$($msi.FullName).sig"
+          $notesPath = "docs/releases/$version.md"
+          $notesOption = @('--generate-notes')
+          if (Test-Path -LiteralPath $notesPath) {
+            $notesOption = @('--notes-file', $notesPath)
+          }
           gh release create $env:GITHUB_REF_NAME `
             --repo $env:GITHUB_REPOSITORY `
             --title "AMP99 $version" `
             --latest `
-            --generate-notes `
+            @notesOption `
             $msi.FullName `
             $setup.FullName `
             $msiSignature.FullName `
