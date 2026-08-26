@@ -2,6 +2,7 @@ import { useSyncExternalStore } from "react";
 
 export type Amp99Preferences = {
   alwaysOnTop: boolean;
+  closeToTray: boolean;
   startMinimized: boolean;
   rememberWindowPositions: boolean;
   restoreEqualizerOnStartup: boolean;
@@ -14,6 +15,7 @@ const CHANNEL_NAME = "amp99-preferences-v1";
 
 export const DEFAULT_PREFERENCES: Amp99Preferences = {
   alwaysOnTop: false,
+  closeToTray: false,
   startMinimized: false,
   rememberWindowPositions: true,
   restoreEqualizerOnStartup: true,
@@ -30,6 +32,10 @@ function normalizePreferences(value: unknown): Amp99Preferences {
       typeof candidate.alwaysOnTop === "boolean"
         ? candidate.alwaysOnTop
         : DEFAULT_PREFERENCES.alwaysOnTop,
+    closeToTray:
+      typeof candidate.closeToTray === "boolean"
+        ? candidate.closeToTray
+        : DEFAULT_PREFERENCES.closeToTray,
     startMinimized:
       typeof candidate.startMinimized === "boolean"
         ? candidate.startMinimized
