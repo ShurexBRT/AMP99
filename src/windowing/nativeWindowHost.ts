@@ -23,6 +23,7 @@ const SNAP_THRESHOLD_PX = 14;
 const DOCK_LINK_THRESHOLD_PX = 2;
 const AUX_RESTORE_DELAY_MS = 180;
 const AUX_RESTORE_POLL_INTERVAL_MS = 150;
+const MAIN_RESTORED_EVENT = "amp99://main-restored";
 
 const BASE_SIZE: Record<Amp99NativeWindowRole, { width: number; height: number }> = {
   main: { width: MAIN_WINDOW_WIDTH, height: MAIN_WINDOW_HEIGHT },
@@ -570,6 +571,7 @@ export async function installNativeWindowHost(
   let lastKnownPosition = await current.outerPosition();
 
   let unlistenFocused: (() => void) | undefined;
+  let unlistenNativeRestore: (() => void) | undefined;
   let onDomFocus: (() => void) | undefined;
   let onVisibilityChange: (() => void) | undefined;
   let stopMainLifecycleWatcher: (() => void) | undefined;
@@ -583,6 +585,9 @@ export async function installNativeWindowHost(
     };
     window.addEventListener("focus", onDomFocus);
     document.addEventListener("visibilitychange", onVisibilityChange);
+    unlistenNativeRestore = await current.listen(MAIN_RESTORED_EVENT, () => {
+      scheduleAuxVisibilityRestore();
+    });
     stopMainLifecycleWatcher = watchMainLifecycle(current);
     await restoreAuxVisibility(true);
     window.setTimeout(() => void restoreAuxVisibility(false), AUX_RESTORE_DELAY_MS);
@@ -680,6 +685,7 @@ export async function installNativeWindowHost(
     unlistenResized();
     unlistenMoved();
     unlistenFocused?.();
+    unlistenNativeRestore?.();
     if (onDomFocus) window.removeEventListener("focus", onDomFocus);
     if (onVisibilityChange) {
       document.removeEventListener("visibilitychange", onVisibilityChange);

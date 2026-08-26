@@ -17,7 +17,7 @@ use std::{
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Emitter, Manager, WebviewUrl, WebviewWindowBuilder,
+    Emitter, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent,
 };
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use update_links::open_official_amp99_release;
@@ -30,6 +30,7 @@ const MAX_SKIN_BYTES: u64 = 16 * 1024 * 1024;
 const OPEN_SKIN_EVENT: &str = "amp99://open-skin";
 const MEDIA_KEY_EVENT: &str = "amp99://media-key";
 const ALWAYS_ON_TOP_EVENT: &str = "amp99://always-on-top-changed";
+const MAIN_RESTORED_EVENT: &str = "amp99://main-restored";
 const SPOTIFY_OAUTH_EVENT: &str = "amp99://spotify-oauth-callback";
 const SPOTIFY_AUTHORIZE_PREFIX: &str = "https://accounts.spotify.com/authorize";
 const SPOTIFY_CALLBACK_BIND: &str = "127.0.0.1:43821";
@@ -389,6 +390,19 @@ fn register_media_shortcuts(app: &tauri::AppHandle) {
     }
 }
 
+fn register_main_restore_event(app: &tauri::AppHandle) -> tauri::Result<()> {
+    let Some(main) = app.get_webview_window("main") else {
+        return Ok(());
+    };
+    let handle = app.clone();
+    main.on_window_event(move |event| {
+        if matches!(event, WindowEvent::Focused(true)) {
+            let _ = handle.emit(MAIN_RESTORED_EVENT, ());
+        }
+    });
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -424,6 +438,7 @@ pub fn run() {
             }
             create_tray(app.handle())?;
             register_media_shortcuts(app.handle());
+            register_main_restore_event(app.handle())?;
             Ok(())
         })
         .run(tauri::generate_context!())
