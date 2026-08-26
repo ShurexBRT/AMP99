@@ -585,9 +585,11 @@ export async function installNativeWindowHost(
     };
     window.addEventListener("focus", onDomFocus);
     document.addEventListener("visibilitychange", onVisibilityChange);
-    unlistenNativeRestore = await current.listen(MAIN_RESTORED_EVENT, () => {
-      scheduleAuxVisibilityRestore();
-    });
+    unlistenNativeRestore = await current
+      .listen(MAIN_RESTORED_EVENT, () => {
+        scheduleAuxVisibilityRestore();
+      })
+      .catch(() => undefined);
     stopMainLifecycleWatcher = watchMainLifecycle(current);
     await restoreAuxVisibility(true);
     window.setTimeout(() => void restoreAuxVisibility(false), AUX_RESTORE_DELAY_MS);
