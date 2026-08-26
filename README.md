@@ -269,7 +269,10 @@ Frontend tests:
 
 ```bash
 npm test
+npm run test:ui
 ```
+
+The UI smoke suite and native Windows probe are documented in [`docs/UI_TESTING.md`](./docs/UI_TESTING.md).
 
 Version consistency check:
 

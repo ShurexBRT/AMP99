@@ -10,14 +10,29 @@ import {
 } from "./preferencesStore";
 
 const ALWAYS_ON_TOP_EVENT = "amp99://always-on-top-changed";
+export const BROWSER_PREFERENCES_VISIBILITY_EVENT = "amp99://browser-preferences-visibility";
 
 export async function showPreferencesWindow(): Promise<void> {
-  if (!isTauri()) return;
+  if (!isTauri()) {
+    window.dispatchEvent(
+      new CustomEvent<boolean>(BROWSER_PREFERENCES_VISIBILITY_EVENT, {
+        detail: true,
+      }),
+    );
+    return;
+  }
   await invoke("show_preferences_window");
 }
 
 export async function hidePreferencesWindow(): Promise<void> {
-  if (!isTauri()) return;
+  if (!isTauri()) {
+    window.dispatchEvent(
+      new CustomEvent<boolean>(BROWSER_PREFERENCES_VISIBILITY_EVENT, {
+        detail: false,
+      }),
+    );
+    return;
+  }
   await getCurrentWebviewWindow().hide();
 }
 

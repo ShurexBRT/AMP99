@@ -181,8 +181,11 @@ jobs:
               [DllImport("user32.dll")] private static extern bool IsIconic(IntPtr hWnd);
               [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr hWnd, int command);
               [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hWnd);
+              [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] private static extern IntPtr GetWindowLongPtr(IntPtr hWnd, int index);
               [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int maxCount);
               [DllImport("user32.dll")] private static extern int GetWindowTextLength(IntPtr hWnd);
+              private const int GWL_EXSTYLE = -20;
+              private const long WS_EX_TOPMOST = 0x00000008L;
               public static string[] VisibleTitlesForProcess(int processId) {
                   var titles = new List<string>();
                   EnumWindows((hWnd, lParam) => {
@@ -232,6 +235,10 @@ jobs:
 
               public static void Focus(IntPtr hWnd) {
                   if (hWnd != IntPtr.Zero) SetForegroundWindow(hWnd);
+              }
+
+              public static bool IsTopMost(IntPtr hWnd) {
+                  return hWnd != IntPtr.Zero && (GetWindowLongPtr(hWnd, GWL_EXSTYLE).ToInt64() & WS_EX_TOPMOST) != 0;
               }
           }
           "@
@@ -309,7 +316,8 @@ jobs:
           }
           Write-SmokeLog "PASS .wsz file association is registered"
 
-          Write-SmokeLog "Launching installed executable: $installedExe"
+          $env:AMP99_SMOKE_ALWAYS_ON_TOP = "1"
+          Write-SmokeLog "Launching installed executable with native Always on Top smoke flag: $installedExe"
           $process = Start-Process -FilePath $installedExe -PassThru
           Wait-Amp99InstalledWindows $process
 
@@ -321,6 +329,23 @@ jobs:
           $playlistHandle = [Amp99InstalledWindowProbe]::WindowForProcess($process.Id, $playlistTitle)
           if ($mainHandle -eq [IntPtr]::Zero -or $equalizerHandle -eq [IntPtr]::Zero -or $playlistHandle -eq [IntPtr]::Zero) {
             throw "Could not identify all three AMP99 native windows for minimize/restore smoke test."
+          }
+
+          $topmostDeadline = (Get-Date).AddSeconds(10)
+          do {
+            if ([Amp99InstalledWindowProbe]::IsTopMost($mainHandle) -and
+                [Amp99InstalledWindowProbe]::IsTopMost($equalizerHandle) -and
+                [Amp99InstalledWindowProbe]::IsTopMost($playlistHandle)) {
+              Write-SmokeLog "PASS Main, Equalizer and Playlist inherit native Always on Top"
+              break
+            }
+            Start-Sleep -Milliseconds 250
+          } while ((Get-Date) -lt $topmostDeadline)
+
+          if (-not ([Amp99InstalledWindowProbe]::IsTopMost($mainHandle) -and
+                    [Amp99InstalledWindowProbe]::IsTopMost($equalizerHandle) -and
+                    [Amp99InstalledWindowProbe]::IsTopMost($playlistHandle))) {
+            throw "Native Always on Top was not applied to all three AMP99 windows."
           }
 
           Write-SmokeLog "Testing native auxiliary restore after Main minimize"
@@ -347,6 +372,13 @@ jobs:
                     [Amp99InstalledWindowProbe]::IsRestored($playlistHandle))) {
             throw "Main minimize/restore did not return all visible auxiliary windows."
           }
+
+          if (-not ([Amp99InstalledWindowProbe]::IsTopMost($mainHandle) -and
+                    [Amp99InstalledWindowProbe]::IsTopMost($equalizerHandle) -and
+                    [Amp99InstalledWindowProbe]::IsTopMost($playlistHandle))) {
+            throw "Native Always on Top was not preserved after Main minimize/restore."
+          }
+          Write-SmokeLog "PASS Always on Top remained applied after Main minimize/restore"
 
           $testSkin = Join-Path $env:RUNNER_TEMP "amp99-single-instance-smoke.wsz"
           Set-Content -Path $testSkin -Value "AMP99 invalid test archive: native handoff only" -NoNewline
