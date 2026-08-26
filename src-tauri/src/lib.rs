@@ -38,6 +38,7 @@ const SPOTIFY_CALLBACK_BIND: &str = "127.0.0.1:43821";
 const SPOTIFY_CALLBACK_BASE: &str = "http://127.0.0.1:43821";
 const SPOTIFY_OAUTH_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 const PLAYER_WINDOWS: [&str; 3] = ["main", "equalizer", "playlist"];
+const DOCK_LINK_THRESHOLD_PX: i32 = 2;
 
 #[derive(Default)]
 struct PendingSkin(Mutex<Option<String>>);
@@ -459,6 +460,85 @@ fn set_native_auxiliary_visibility(
     Ok(())
 }
 
+type NativeWindowGeometry = (i32, i32, i32, i32);
+
+fn native_window_geometry(window: &tauri::WebviewWindow) -> Option<NativeWindowGeometry> {
+    let position = window.outer_position().ok()?;
+    let size = window.outer_size().ok()?;
+    Some((position.x, position.y, size.width as i32, size.height as i32))
+}
+
+fn native_windows_are_docked(
+    first: NativeWindowGeometry,
+    second: NativeWindowGeometry,
+) -> bool {
+    let (first_x, first_y, first_width, first_height) = first;
+    let (second_x, second_y, second_width, second_height) = second;
+    let first_right = first_x + first_width;
+    let first_bottom = first_y + first_height;
+    let second_right = second_x + second_width;
+    let second_bottom = second_y + second_height;
+
+    let vertical_overlap = std::cmp::min(first_bottom, second_bottom)
+        - std::cmp::max(first_y, second_y)
+        > 0;
+    let horizontal_overlap = std::cmp::min(first_right, second_right)
+        - std::cmp::max(first_x, second_x)
+        > 0;
+    let touches_horizontally = (first_right - second_x).abs() <= DOCK_LINK_THRESHOLD_PX
+        || (second_right - first_x).abs() <= DOCK_LINK_THRESHOLD_PX;
+    let touches_vertically = (first_bottom - second_y).abs() <= DOCK_LINK_THRESHOLD_PX
+        || (second_bottom - first_y).abs() <= DOCK_LINK_THRESHOLD_PX;
+
+    (touches_horizontally && vertical_overlap)
+        || (touches_vertically && horizontal_overlap)
+}
+
+fn docked_auxiliary_roles(app: &tauri::AppHandle) -> Vec<&'static str> {
+    let mut geometries = Vec::new();
+    for label in PLAYER_WINDOWS {
+        let Some(window) = app.get_webview_window(label) else {
+            continue;
+        };
+        if !window.is_visible().unwrap_or(false) {
+            continue;
+        }
+        let Some(geometry) = native_window_geometry(&window) else {
+            continue;
+        };
+        geometries.push((label, geometry));
+    }
+
+    let Some((_, _main_geometry)) = geometries.iter().find(|(label, _)| *label == "main") else {
+        return Vec::new();
+    };
+
+    let mut connected = vec!["main"];
+    let mut expanded = true;
+    while expanded {
+        expanded = false;
+        for (label, geometry) in &geometries {
+            if connected.contains(label) {
+                continue;
+            }
+            let attaches_to_group = geometries.iter().any(|(member_label, member_geometry)| {
+                connected.contains(member_label)
+                    && native_windows_are_docked(*member_geometry, *geometry)
+            });
+            if attaches_to_group {
+                connected.push(*label);
+                expanded = true;
+            }
+        }
+    }
+
+    connected
+        .into_iter()
+        .filter(|label| *label != "main")
+        .filter(|label| geometries.iter().any(|(candidate, _)| candidate == label))
+        .collect()
+}
+
 fn watch_main_window_lifecycle(app: &tauri::AppHandle) {
     let handle = app.clone();
     thread::spawn(move || {
@@ -473,8 +553,17 @@ fn watch_main_window_lifecycle(app: &tauri::AppHandle) {
 
             let minimized = main.is_minimized().unwrap_or(false);
             let visible = main.is_visible().unwrap_or(true);
+            let minimized_from_native = was_minimized == Some(false) && minimized;
             let restored_from_minimize = was_minimized == Some(true) && !minimized;
             let restored_from_hidden = was_visible == Some(false) && visible;
+
+            if minimized_from_native {
+                for role in docked_auxiliary_roles(&handle) {
+                    if let Some(window) = handle.get_webview_window(role) {
+                        let _ = window.minimize();
+                    }
+                }
+            }
 
             if restored_from_minimize || restored_from_hidden {
                 restore_native_auxiliary_windows(&handle);
