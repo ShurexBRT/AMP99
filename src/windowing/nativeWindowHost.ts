@@ -23,7 +23,6 @@ const SNAP_THRESHOLD_PX = 14;
 const DOCK_LINK_THRESHOLD_PX = 2;
 const AUX_RESTORE_DELAY_MS = 180;
 const AUX_RESTORE_POLL_INTERVAL_MS = 150;
-const AUX_RESTORE_POLL_ATTEMPTS = 40;
 
 const BASE_SIZE: Record<Amp99NativeWindowRole, { width: number; height: number }> = {
   main: { width: MAIN_WINDOW_WIDTH, height: MAIN_WINDOW_HEIGHT },
@@ -62,7 +61,7 @@ type WindowGeometry = {
 
 let scheduledAuxRestore: number | undefined;
 let auxRestoreInFlight: Promise<void> | undefined;
-let mainRestoreWatcher: number | undefined;
+let mainLifecycleWatcher: number | undefined;
 
 function isAmp99NativeWindowRole(label: string): label is Amp99NativeWindowRole {
   return label === "main" || label === "equalizer" || label === "playlist";
@@ -168,7 +167,7 @@ async function restoreAuxVisibility(startup = false): Promise<void> {
     const preferences = getPreferencesSnapshot();
     await Promise.all(
       (["equalizer", "playlist"] as const).map(async (role) => {
-        const target = await WebviewWindow.getByLabel(role);
+        const target = await WebviewWindow.getByLabel(role).catch(() => null);
         if (!target) return;
         const startupEnabled =
           role === "equalizer"
@@ -208,30 +207,37 @@ function scheduleAuxVisibilityRestore(): void {
   }, AUX_RESTORE_DELAY_MS);
 }
 
-function watchForMainRestore(current: WebviewWindow): void {
-  if (mainRestoreWatcher !== undefined) {
-    window.clearInterval(mainRestoreWatcher);
-  }
+function watchMainLifecycle(current: WebviewWindow): () => void {
+  let wasMinimized: boolean | undefined;
+  let wasVisible: boolean | undefined;
+  let checkInFlight = false;
 
-  let observedMinimized = false;
-  let attempts = 0;
-  mainRestoreWatcher = window.setInterval(() => {
+  const watcher = window.setInterval(() => {
+    if (checkInFlight) return;
+    checkInFlight = true;
     void (async () => {
-      attempts += 1;
-      const minimized = await current.isMinimized().catch(() => false);
-      if (minimized) observedMinimized = true;
-      if (observedMinimized && !minimized) {
-        window.clearInterval(mainRestoreWatcher);
-        mainRestoreWatcher = undefined;
+      const [minimized, visible] = await Promise.all([
+        current.isMinimized().catch(() => false),
+        current.isVisible().catch(() => true),
+      ]);
+      if (
+        (wasMinimized === true && !minimized) ||
+        (wasVisible === false && visible)
+      ) {
         scheduleAuxVisibilityRestore();
-        return;
       }
-      if (attempts >= AUX_RESTORE_POLL_ATTEMPTS) {
-        window.clearInterval(mainRestoreWatcher);
-        mainRestoreWatcher = undefined;
-      }
-    })();
+      wasMinimized = minimized;
+      wasVisible = visible;
+    })().finally(() => {
+      checkInFlight = false;
+    });
   }, AUX_RESTORE_POLL_INTERVAL_MS);
+
+  mainLifecycleWatcher = watcher;
+  return () => {
+    window.clearInterval(watcher);
+    if (mainLifecycleWatcher === watcher) mainLifecycleWatcher = undefined;
+  };
 }
 
 export async function hidePlayerWindowGroup(): Promise<void> {
@@ -528,10 +534,8 @@ export async function minimizeNativeWindowGroup(): Promise<boolean> {
         window.minimize().catch(() => undefined),
       ),
     );
-    watchForMainRestore(current);
   } catch {
     await current.minimize().catch(() => undefined);
-    watchForMainRestore(current);
   }
   return true;
 }
@@ -568,6 +572,7 @@ export async function installNativeWindowHost(
   let unlistenFocused: (() => void) | undefined;
   let onDomFocus: (() => void) | undefined;
   let onVisibilityChange: (() => void) | undefined;
+  let stopMainLifecycleWatcher: (() => void) | undefined;
   if (role === "main") {
     unlistenFocused = await current.onFocusChanged(({ payload }) => {
       if (payload) scheduleAuxVisibilityRestore();
@@ -578,6 +583,7 @@ export async function installNativeWindowHost(
     };
     window.addEventListener("focus", onDomFocus);
     document.addEventListener("visibilitychange", onVisibilityChange);
+    stopMainLifecycleWatcher = watchMainLifecycle(current);
     await restoreAuxVisibility(true);
     window.setTimeout(() => void restoreAuxVisibility(false), AUX_RESTORE_DELAY_MS);
     if (preferences.startMinimized) await hidePlayerWindowGroup();
@@ -678,5 +684,6 @@ export async function installNativeWindowHost(
     if (onVisibilityChange) {
       document.removeEventListener("visibilitychange", onVisibilityChange);
     }
+    stopMainLifecycleWatcher?.();
   };
 }
