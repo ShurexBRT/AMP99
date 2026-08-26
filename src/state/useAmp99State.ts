@@ -16,6 +16,7 @@ import {
   removeTrackAt,
   type QueueMoveDirection,
 } from "./queueOperations";
+import { readNativeAuxVisibility } from "../windowing/nativeWindowHost";
 
 const STORAGE_KEY = "amp99.windowPositions.v1";
 const LAST_QUEUE_STORAGE_KEY = "amp99.lastQueue.v1";
@@ -96,9 +97,14 @@ function loadPositions(): Record<WindowId, WindowPosition> {
 export function useAmp99State() {
   const preferences = usePreferences();
   const initialQueueRef = useRef<PersistedQueue | null>(loadPersistedQueue());
+  const initialAuxVisibilityRef = useRef(readNativeAuxVisibility());
   const [positions, setPositions] = useState(loadPositions);
-  const [playlistVisible, setPlaylistVisible] = useState(true);
-  const [equalizerVisible, setEqualizerVisible] = useState(true);
+  const [playlistVisible, setPlaylistVisible] = useState(
+    () => preferences.restorePlaylistOnStartup && initialAuxVisibilityRef.current.playlist,
+  );
+  const [equalizerVisible, setEqualizerVisible] = useState(
+    () => preferences.restoreEqualizerOnStartup && initialAuxVisibilityRef.current.equalizer,
+  );
   const [isPlaying, setIsPlaying] = useState(false);
   const [tracks, setTracks] = useState<Track[]>(
     initialQueueRef.current?.tracks ?? demoTracks,

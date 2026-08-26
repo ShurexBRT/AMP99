@@ -125,7 +125,7 @@ function clampMainSize(width: number, height: number): { width: number; height: 
   };
 }
 
-function readAuxVisibility(): AuxVisibility {
+export function readNativeAuxVisibility(): AuxVisibility {
   try {
     const parsed = JSON.parse(
       localStorage.getItem(AUX_VISIBILITY_STORAGE_KEY) || "{}",
@@ -144,7 +144,7 @@ function saveAuxVisibility(
   visible: boolean,
 ): void {
   try {
-    const current = readAuxVisibility();
+    const current = readNativeAuxVisibility();
     current[role] = visible;
     localStorage.setItem(AUX_VISIBILITY_STORAGE_KEY, JSON.stringify(current));
   } catch {
@@ -154,7 +154,7 @@ function saveAuxVisibility(
 
 async function restoreAuxVisibility(startup = false): Promise<void> {
   if (!isTauri()) return;
-  const saved = readAuxVisibility();
+  const saved = readNativeAuxVisibility();
   const preferences = getPreferencesSnapshot();
   for (const role of ["equalizer", "playlist"] as const) {
     const target = await WebviewWindow.getByLabel(role);
