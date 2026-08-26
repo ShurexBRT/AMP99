@@ -17,7 +17,7 @@ use std::{
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Emitter, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent,
+    Emitter, Manager, WebviewUrl, WebviewWindowBuilder,
 };
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use update_links::open_official_amp99_release;
@@ -390,17 +390,32 @@ fn register_media_shortcuts(app: &tauri::AppHandle) {
     }
 }
 
-fn register_main_restore_event(app: &tauri::AppHandle) -> tauri::Result<()> {
-    let Some(main) = app.get_webview_window("main") else {
-        return Ok(());
-    };
+fn watch_main_window_lifecycle(app: &tauri::AppHandle) {
     let handle = app.clone();
-    main.on_window_event(move |event| {
-        if matches!(event, WindowEvent::Focused(true) | WindowEvent::Resized(_)) {
-            let _ = handle.emit(MAIN_RESTORED_EVENT, ());
+    thread::spawn(move || {
+        let mut was_minimized = None;
+        let mut was_visible = None;
+
+        loop {
+            let Some(main) = handle.get_webview_window("main") else {
+                thread::sleep(Duration::from_millis(250));
+                continue;
+            };
+
+            let minimized = main.is_minimized().unwrap_or(false);
+            let visible = main.is_visible().unwrap_or(true);
+            let restored_from_minimize = was_minimized == Some(true) && !minimized;
+            let restored_from_hidden = was_visible == Some(false) && visible;
+
+            if restored_from_minimize || restored_from_hidden {
+                let _ = handle.emit(MAIN_RESTORED_EVENT, ());
+            }
+
+            was_minimized = Some(minimized);
+            was_visible = Some(visible);
+            thread::sleep(Duration::from_millis(150));
         }
     });
-    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -438,7 +453,7 @@ pub fn run() {
             }
             create_tray(app.handle())?;
             register_media_shortcuts(app.handle());
-            register_main_restore_event(app.handle())?;
+            watch_main_window_lifecycle(app.handle());
             Ok(())
         })
         .run(tauri::generate_context!())
