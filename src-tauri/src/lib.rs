@@ -20,6 +20,7 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Emitter, Manager, WebviewUrl, WebviewWindowBuilder,
 };
+use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use update_links::open_official_amp99_release;
 use secure_storage::{
@@ -539,6 +540,28 @@ fn docked_auxiliary_roles(app: &tauri::AppHandle) -> Vec<&'static str> {
         .collect()
 }
 
+fn native_window_is_minimized(window: &tauri::WebviewWindow) -> Option<bool> {
+    #[cfg(windows)]
+    {
+        let handle = window.window_handle().ok()?;
+        let RawWindowHandle::Win32(win32) = handle.as_raw() else {
+            return None;
+        };
+        let hwnd = win32.hwnd.get() as windows_sys::Win32::Foundation::HWND;
+        // Tauri's is_minimized() is backed by the runtime state. The native
+        // watcher must also observe taskbar/Win32 minimize transitions, which
+        // can happen without a Tauri window event reaching the WebView.
+        return Some(unsafe {
+            windows_sys::Win32::UI::WindowsAndMessaging::IsIconic(hwnd) != 0
+        });
+    }
+
+    #[cfg(not(windows))]
+    {
+        window.is_minimized().ok()
+    }
+}
+
 fn watch_main_window_lifecycle(app: &tauri::AppHandle) {
     let handle = app.clone();
     thread::spawn(move || {
@@ -551,7 +574,7 @@ fn watch_main_window_lifecycle(app: &tauri::AppHandle) {
                 continue;
             };
 
-            let minimized = main.is_minimized().unwrap_or(false);
+            let minimized = native_window_is_minimized(&main).unwrap_or(false);
             let visible = main.is_visible().unwrap_or(true);
             let minimized_from_native = was_minimized == Some(false) && minimized;
             let restored_from_minimize = was_minimized == Some(true) && !minimized;
