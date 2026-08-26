@@ -488,6 +488,23 @@ fn watch_main_window_lifecycle(app: &tauri::AppHandle) {
     });
 }
 
+fn enable_native_smoke_always_on_top(app: &tauri::AppHandle) {
+    if std::env::var_os("AMP99_SMOKE_ALWAYS_ON_TOP").is_none() {
+        return;
+    }
+
+    // This is deliberately opt-in and only exists for the Windows native smoke
+    // test. It does not alter the persisted user preference or normal startup.
+    app.state::<AlwaysOnTop>().0.store(true, Ordering::Relaxed);
+    let handle = app.clone();
+    thread::spawn(move || {
+        for _ in 0..80 {
+            reapply_group_always_on_top_impl(&handle);
+            thread::sleep(Duration::from_millis(150));
+        }
+    });
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -526,6 +543,7 @@ pub fn run() {
             }
             create_tray(app.handle())?;
             register_media_shortcuts(app.handle());
+            enable_native_smoke_always_on_top(app.handle());
             watch_main_window_lifecycle(app.handle());
             Ok(())
         })

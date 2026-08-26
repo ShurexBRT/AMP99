@@ -6,6 +6,7 @@ import { PreferencesWindow } from "./preferences/PreferencesWindow";
 import {
   showPreferencesWindow,
   useApplyNativePreferences,
+  BROWSER_PREFERENCES_VISIBILITY_EVENT,
 } from "./preferences/nativePreferences";
 import { useSkinManager } from "./skins/useSkinManager";
 import { spotifyTracksToPlayerQueue } from "./spotify/playerAdapter";
@@ -772,5 +773,36 @@ export default function App() {
   if (role === "playlist") return <NativePlaylistWindow />;
   if (role === "preferences") return <PreferencesWindow />;
 
-  return <MainController native={false} />;
+  return <BrowserFallback />;
+}
+
+function BrowserFallback() {
+  const [preferencesVisible, setPreferencesVisible] = useState(false);
+
+  useEffect(() => {
+    const onPreferencesVisibility = (event: Event) => {
+      const visible = (event as CustomEvent<boolean>).detail;
+      setPreferencesVisible(Boolean(visible));
+    };
+
+    window.addEventListener(
+      BROWSER_PREFERENCES_VISIBILITY_EVENT,
+      onPreferencesVisibility,
+    );
+    return () => {
+      window.removeEventListener(
+        BROWSER_PREFERENCES_VISIBILITY_EVENT,
+        onPreferencesVisibility,
+      );
+    };
+  }, []);
+
+  return (
+    <>
+      <div hidden={preferencesVisible}>
+        <MainController native={false} />
+      </div>
+      {preferencesVisible ? <PreferencesWindow /> : null}
+    </>
+  );
 }

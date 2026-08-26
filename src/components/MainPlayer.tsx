@@ -331,8 +331,16 @@ function DefaultMainPlayer(props: Props) {
         <div className="toggle-row">
           <button className={props.shuffle ? "active" : ""} onClick={props.onShuffle}>SHUFFLE</button>
           <button className={props.repeat ? "active" : ""} onClick={props.onRepeat}>REPEAT</button>
-          <button className={props.equalizerVisible ? "active" : ""} onClick={props.onToggleEqualizer}>EQ</button>
-          <button className={props.playlistVisible ? "active" : ""} onClick={props.onTogglePlaylist}>PL</button>
+          <button
+            className={props.equalizerVisible ? "active" : ""}
+            aria-label="Equalizer"
+            onClick={props.onToggleEqualizer}
+          >EQ</button>
+          <button
+            className={props.playlistVisible ? "active" : ""}
+            aria-label="Playlist"
+            onClick={props.onTogglePlaylist}
+          >PL</button>
         </div>
       </div>
       <button
