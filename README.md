@@ -73,7 +73,8 @@ The large shared-window layout may remain only as a browser-development fallback
 - Main `EQ` / `PL` buttons control the real auxiliary windows;
 - shade mode resizes the actual native window;
 - 1× / 2× changes native window dimensions;
-- closing Main hides the AMP99 window group to tray;
+- closing Main quits AMP99 by default; an optional preference keeps the window group in the system tray;
+- minimizing Main also minimizes the currently docked EQ/Playlist group;
 - EQ / Playlist close independently;
 - tray restores Main and previously-visible auxiliary windows;
 - Always on Top applies to the player window group.
@@ -97,7 +98,7 @@ Windows CI explicitly enumerates Win32 top-level windows for the AMP99 process a
 | `.wsz` Playlist rendering | **Implemented foundation** | `PLEDIT` chrome + `PLEDIT.TXT` colors |
 | Cross-window skin sync | **Implemented** | Same skin is applied across native webviews |
 | `.wsz` file association | **Implemented / CI-tested** | Double-click handoff to running AMP99 |
-| System tray | **Implemented** | Show, Always on Top, Quit |
+| System tray | **Implemented** | Show, Always on Top, Quit, optional close-to-tray behavior |
 | Hardware media keys | **Implemented best-effort** | Conflicts never block startup |
 | Media Session bridge | **Implemented best-effort** | Used where WebView2 exposes it |
 | Realtime playback clock | **Implemented / physically tested** | Interpolated while playing |

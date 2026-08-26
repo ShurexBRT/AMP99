@@ -1,23 +1,28 @@
 import { isTauri } from "@tauri-apps/api/core";
-import { getAllWindows, getCurrentWindow } from "@tauri-apps/api/window";
-
-async function hideAuxiliaryWindows(): Promise<void> {
-  for (const window of await getAllWindows()) {
-    if (window.label === "equalizer" || window.label === "playlist") {
-      await window.hide().catch(() => undefined);
-    }
-  }
-}
+import { exit } from "@tauri-apps/plugin-process";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getPreferencesSnapshot } from "../preferences/preferencesStore";
+import {
+  hidePlayerWindowGroup,
+  minimizeNativeWindowGroup,
+} from "../windowing/nativeWindowHost";
 
 export async function minimizeHostWindow(): Promise<void> {
   if (!isTauri()) return;
-  await hideAuxiliaryWindows();
+  if (await minimizeNativeWindowGroup()) return;
   await getCurrentWindow().minimize();
 }
 
 export async function hideHostWindowToTray(): Promise<void> {
   if (!isTauri()) return;
-  for (const window of await getAllWindows()) {
-    await window.hide().catch(() => undefined);
+  await hidePlayerWindowGroup();
+}
+
+export async function closeHostWindow(): Promise<void> {
+  if (!isTauri()) return;
+  if (getPreferencesSnapshot().closeToTray) {
+    await hideHostWindowToTray();
+    return;
   }
+  await exit(0);
 }

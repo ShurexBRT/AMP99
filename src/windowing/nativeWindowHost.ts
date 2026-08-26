@@ -164,16 +164,19 @@ async function restoreAuxVisibility(startup = false): Promise<void> {
         ? preferences.restoreEqualizerOnStartup
         : preferences.restorePlaylistOnStartup;
     const visible = startup ? startupEnabled && saved[role] : saved[role];
-    if (visible) await target.show();
+    if (visible) {
+      await target.unminimize();
+      await target.show();
+    }
     else await target.hide();
   }
 }
 
-async function hidePlayerWindowGroup(): Promise<void> {
+export async function hidePlayerWindowGroup(): Promise<void> {
   if (!isTauri()) return;
   for (const role of ["main", "equalizer", "playlist"] as const) {
     const target = await WebviewWindow.getByLabel(role);
-    if (target) await target.hide();
+    if (target) await target.hide().catch(() => undefined);
   }
 }
 
@@ -448,6 +451,24 @@ async function moveDockedGroupWithMain(
   }
 
   return finalMainPosition;
+}
+
+export async function minimizeNativeWindowGroup(): Promise<boolean> {
+  if (!isNativeHostFor("main")) return false;
+
+  const current = getCurrentWebviewWindow();
+  try {
+    const mainPosition = await current.outerPosition();
+    const docked = await dockedGroupFromMain(current, mainPosition);
+    await Promise.all(
+      [current, ...docked.map((geometry) => geometry.window)].map((window) =>
+        window.minimize().catch(() => undefined),
+      ),
+    );
+  } catch {
+    await current.minimize().catch(() => undefined);
+  }
+  return true;
 }
 
 export async function installNativeWindowHost(

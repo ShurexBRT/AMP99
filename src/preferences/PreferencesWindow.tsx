@@ -39,6 +39,12 @@ const CHECKBOXES: Array<{
     section: "GENERAL",
   },
   {
+    key: "closeToTray",
+    label: "Keep running in tray when closed",
+    hint: "Keep AMP99 running in the system tray when the Main window is closed.",
+    section: "GENERAL",
+  },
+  {
     key: "rememberWindowPositions",
     label: "Remember window positions",
     hint: "Restore Main, EQ and Playlist positions after restart.",

@@ -7,7 +7,8 @@ import {
   type ReactNode,
 } from "react";
 import { useDraggableWindow } from "../hooks/useDraggableWindow";
-import { hideHostWindowToTray, minimizeHostWindow } from "../platform/windowControls";
+import { closeHostWindow, minimizeHostWindow } from "../platform/windowControls";
+import { usePreferences } from "../preferences/preferencesStore";
 import { useCurrentSkin } from "../skins/useSkinManager";
 import type { WindowId, WindowPosition } from "../types/player";
 import { requestMain } from "../windowing/bridge";
@@ -153,6 +154,7 @@ export function WindowFrame({
 }: Props) {
   const resolvedWindowId = windowId ?? inferWindowId(title);
   const nativeHost = isNativeHostFor(resolvedWindowId);
+  const preferences = usePreferences();
   const sharedSkin = useCurrentSkin();
   const sharedSprite = (name: string) => sharedSkin?.sprites.get(name) ?? null;
   const [active, setActive] = useState(resolvedWindowId === "main");
@@ -334,7 +336,7 @@ export function WindowFrame({
 
     if (kind === "close") {
       if (resolvedWindowId === "main") {
-        void hideHostWindowToTray();
+        void closeHostWindow();
       } else if (nativeHost) {
         void hideCurrentNativeWindow();
         void requestMain(
@@ -398,7 +400,9 @@ export function WindowFrame({
                     ? `Unshade ${title}`
                     : `Shade ${title}`
                   : resolvedWindowId === "main"
-                    ? "Hide AMP99 to tray"
+                    ? preferences.closeToTray
+                      ? "Hide AMP99 to tray"
+                      : "Quit AMP99"
                     : `Close ${title}`;
 
             return (
