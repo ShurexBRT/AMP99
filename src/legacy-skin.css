@@ -90,6 +90,23 @@
   image-rendering: pixelated;
 }
 
+.legacy-time-toggle {
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.legacy-time-digits {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 105px;
+  height: 42px;
+  padding: 0;
+}
+
 .legacy-time-fallback {
   position: absolute;
   left: 39px;

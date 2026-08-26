@@ -1,2 +1,7 @@
 export const MAIN_WINDOW_WIDTH = 330;
+export const MAIN_WINDOW_HEIGHT = 116;
+export const MAIN_WINDOW_MIN_WIDTH = 330;
+export const MAIN_WINDOW_MIN_HEIGHT = 116;
+export const MAIN_WINDOW_MAX_WIDTH = 660;
+export const MAIN_WINDOW_MAX_HEIGHT = 320;
 export const LEGACY_MAIN_WINDOW_WIDTH = 275;

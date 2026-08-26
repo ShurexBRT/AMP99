@@ -7,7 +7,14 @@ import {
 } from "@tauri-apps/api/webviewWindow";
 import { getPreferencesSnapshot } from "../preferences/preferencesStore";
 import type { Amp99NativeWindowRole } from "./bridge";
-import { MAIN_WINDOW_WIDTH } from "./windowDimensions";
+import {
+  MAIN_WINDOW_HEIGHT,
+  MAIN_WINDOW_MAX_HEIGHT,
+  MAIN_WINDOW_MAX_WIDTH,
+  MAIN_WINDOW_MIN_HEIGHT,
+  MAIN_WINDOW_MIN_WIDTH,
+  MAIN_WINDOW_WIDTH,
+} from "./windowDimensions";
 
 const POSITION_STORAGE_KEY = "amp99.nativeWindowPositions.v1";
 const SIZE_STORAGE_KEY = "amp99.nativeWindowSizes.v1";
@@ -16,7 +23,7 @@ const SNAP_THRESHOLD_PX = 14;
 const DOCK_LINK_THRESHOLD_PX = 2;
 
 const BASE_SIZE: Record<Amp99NativeWindowRole, { width: number; height: number }> = {
-  main: { width: MAIN_WINDOW_WIDTH, height: 116 },
+  main: { width: MAIN_WINDOW_WIDTH, height: MAIN_WINDOW_HEIGHT },
   equalizer: { width: 275, height: 116 },
   playlist: { width: 275, height: 232 },
 };
@@ -111,6 +118,13 @@ function saveSize(role: Amp99NativeWindowRole, width: number, height: number): v
   }
 }
 
+function clampMainSize(width: number, height: number): { width: number; height: number } {
+  return {
+    width: Math.min(MAIN_WINDOW_MAX_WIDTH, Math.max(MAIN_WINDOW_MIN_WIDTH, width)),
+    height: Math.min(MAIN_WINDOW_MAX_HEIGHT, Math.max(MAIN_WINDOW_MIN_HEIGHT, height)),
+  };
+}
+
 function readAuxVisibility(): AuxVisibility {
   try {
     const parsed = JSON.parse(
@@ -190,6 +204,20 @@ export async function applyNativeWindowSize(
       await getCurrentWebviewWindow().setSize(
         new LogicalSize(Math.max(275, saved.width), Math.max(145, saved.height)),
       );
+      return;
+    }
+  }
+
+  if (
+    role === "main" &&
+    widthOverride === MAIN_WINDOW_WIDTH &&
+    !shaded &&
+    !doubleSize
+  ) {
+    const saved = readSavedSizes().main;
+    if (saved) {
+      const size = clampMainSize(saved.width, saved.height);
+      await getCurrentWebviewWindow().setSize(new LogicalSize(size.width, size.height));
       return;
     }
   }
@@ -466,7 +494,7 @@ export async function installNativeWindowHost(
 
   const unlistenResized = await current.onResized(({ payload }) => {
     if (
-      role !== "playlist" ||
+      (role !== "playlist" && role !== "main") ||
       shadedFromDocument() ||
       scaleFromDocument() !== 1
     ) {
@@ -475,7 +503,12 @@ export async function installNativeWindowHost(
     void (async () => {
       const scaleFactor = await current.scaleFactor();
       const logical = payload.toLogical(scaleFactor);
-      saveSize(role, Math.max(275, logical.width), Math.max(145, logical.height));
+      if (role === "main") {
+        const size = clampMainSize(logical.width, logical.height);
+        saveSize(role, size.width, size.height);
+      } else {
+        saveSize(role, Math.max(275, logical.width), Math.max(145, logical.height));
+      }
     })();
   });
 

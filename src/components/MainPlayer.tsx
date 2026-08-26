@@ -2,8 +2,10 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useDesktopMediaControls } from "../platform/useDesktopMediaControls";
 import type { Track, WindowPosition } from "../types/player";
 import { WindowFrame } from "./WindowFrame";
+import { startNativeWindowResize } from "../windowing/nativeWindowHost";
 import {
   LEGACY_MAIN_WINDOW_WIDTH,
+  MAIN_WINDOW_HEIGHT,
   MAIN_WINDOW_WIDTH,
 } from "../windowing/windowDimensions";
 
@@ -165,28 +167,30 @@ function LegacySpriteButton({
   );
 }
 
-function LegacyTime({ elapsed, sprites }: { elapsed: number; sprites: ReadonlyMap<string, string> }) {
-  const digits = timeDigits(elapsed);
+function LegacyTime({
+  value,
+  mode,
+  onToggle,
+  sprites,
+}: {
+  value: number;
+  mode: "elapsed" | "remaining";
+  onToggle: () => void;
+  sprites: ReadonlyMap<string, string>;
+}) {
+  const digits = timeDigits(value);
   const urls = digits.map((digit) => sprites.get(`main.digit${digit}`));
+  const label = `${mode === "elapsed" ? "Elapsed" : "Remaining"} ${secondsToTime(value)}; click to show ${mode === "elapsed" ? "remaining" : "elapsed"} time`;
 
   if (urls.some((url) => !url)) {
-    return <div className="legacy-time-fallback">{secondsToTime(elapsed)}</div>;
+    return <button type="button" className="legacy-time-fallback legacy-time-toggle" aria-label={label} title={label} onClick={onToggle}>{secondsToTime(value)}</button>;
   }
 
   const left = [48, 60, 78, 90];
   return (
-    <div className="legacy-time-digits" aria-label={`Elapsed ${secondsToTime(elapsed)}`}>
-      {urls.map((url, index) => (
-        <img
-          key={`${digits[index]}-${index}`}
-          src={url}
-          alt=""
-          aria-hidden="true"
-          draggable={false}
-          style={{ left: left[index] }}
-        />
-      ))}
-    </div>
+    <button type="button" className="legacy-time-digits legacy-time-toggle" aria-label={label} title={label} onClick={onToggle}>
+      {urls.map((url, index) => <img key={`${digits[index]}-${index}`} src={url} alt="" aria-hidden="true" draggable={false} style={{ left: left[index] }} />)}
+    </button>
   );
 }
 
@@ -194,6 +198,9 @@ function LegacyMainPlayer(props: Props & { sprites: ReadonlyMap<string, string> 
   const { sprites } = props;
   const elapsedExact = (props.track.duration * props.progress) / 100;
   const elapsed = Math.round(elapsedExact);
+  const [showRemaining, setShowRemaining] = useState(false);
+  useEffect(() => setShowRemaining(false), [props.track.id]);
+  const displayedTime = showRemaining ? Math.max(0, props.track.duration - elapsed) : elapsed;
   const spectrum = spectrumHeights(props.track, elapsedExact, props.isPlaying, 16, 16);
   const sprite = (name: string) => sprites.get(name);
   const playbackIndicator = sprite(props.isPlaying ? "main.playing" : "main.stopped");
@@ -231,7 +238,7 @@ function LegacyMainPlayer(props: Props & { sprites: ReadonlyMap<string, string> 
       skinTitlebar={sprite("main.titlebarActive")}
     >
       <div className="legacy-main-body">
-        <LegacyTime elapsed={elapsed} sprites={sprites} />
+        <LegacyTime value={displayedTime} mode={showRemaining ? "remaining" : "elapsed"} onToggle={() => setShowRemaining((value) => !value)} sprites={sprites} />
 
         {playbackIndicator && (
           <img className="legacy-playback-indicator" src={playbackIndicator} alt="" aria-hidden="true" draggable={false} />
@@ -281,19 +288,28 @@ function LegacyMainPlayer(props: Props & { sprites: ReadonlyMap<string, string> 
 function DefaultMainPlayer(props: Props) {
   const elapsedExact = (props.track.duration * props.progress) / 100;
   const elapsed = Math.round(elapsedExact);
+  const [showRemaining, setShowRemaining] = useState(false);
+  useEffect(() => setShowRemaining(false), [props.track.id]);
+  const displayedTime = showRemaining ? Math.max(0, props.track.duration - elapsed) : elapsed;
   const spectrum = spectrumHeights(props.track, elapsedExact, props.isPlaying, 18, 20);
-  const streamLabel = props.track.source === "spotify" ? "SPOTIFY" : "LOCAL";
   return (
-    <WindowFrame title="AMP99" position={props.position} width={MAIN_WINDOW_WIDTH} height={116} onMove={props.onMove} className="main-player">
+    <WindowFrame title="AMP99" position={props.position} width={MAIN_WINDOW_WIDTH} height={MAIN_WINDOW_HEIGHT} onMove={props.onMove} className="main-player">
       <div className="main-body">
         <div className="display-panel">
-          <div className="time-display">{secondsToTime(elapsed)}</div>
+          <button
+            type="button"
+            className="time-display time-display-toggle"
+            aria-label={`${showRemaining ? "Remaining" : "Elapsed"} ${secondsToTime(displayedTime)}; click to show ${showRemaining ? "elapsed" : "remaining"} time`}
+            title="Click to toggle elapsed and remaining time"
+            onClick={() => setShowRemaining((value) => !value)}
+          >
+            {secondsToTime(displayedTime)}
+          </button>
           <div className="status-dot">{props.isPlaying ? "▶" : "■"}</div>
           <div className="track-marquee"><span>{props.track.artist.toUpperCase()} - {props.track.title.toUpperCase()}</span></div>
           <div className="fake-spectrum" aria-hidden="true">
             {spectrum.map((height, index) => <i key={index} style={{ height, transition: "height 80ms linear" }} />)}
           </div>
-          <span className="stream-meta">{streamLabel}</span>
         </div>
 
         <input className="seek classic-range" type="range" min="0" max="100" value={props.progress} onInput={(e) => props.onProgress(Number(e.currentTarget.value))} onChange={() => undefined} aria-label="Seek" />
@@ -319,6 +335,17 @@ function DefaultMainPlayer(props: Props) {
           <button className={props.playlistVisible ? "active" : ""} onClick={props.onTogglePlaylist}>PL</button>
         </div>
       </div>
+      <button
+        type="button"
+        className="main-resize-handle"
+        aria-label="Resize Main Player"
+        title="Drag to resize Main Player"
+        onPointerDown={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          void startNativeWindowResize("main", "SouthEast");
+        }}
+      />
     </WindowFrame>
   );
 }

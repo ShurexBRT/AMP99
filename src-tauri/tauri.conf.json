@@ -18,13 +18,17 @@
         "height": 116,
         "x": 120,
         "y": 120,
-        "resizable": false,
+        "resizable": true,
         "maximizable": false,
         "minimizable": true,
         "fullscreen": false,
         "decorations": false,
         "shadow": false,
-        "backgroundColor": "#090b0e"
+        "backgroundColor": "#090b0e",
+        "minWidth": 330,
+        "minHeight": 116,
+        "maxWidth": 660,
+        "maxHeight": 320
       },
       {
         "label": "equalizer",
