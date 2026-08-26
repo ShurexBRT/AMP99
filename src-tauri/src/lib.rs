@@ -127,6 +127,24 @@ fn set_group_always_on_top(app: &tauri::AppHandle, value: bool) -> bool {
     changed
 }
 
+fn reapply_group_always_on_top_impl(app: &tauri::AppHandle) {
+    let value = app
+        .state::<AlwaysOnTop>()
+        .0
+        .load(Ordering::Relaxed);
+
+    for label in PLAYER_WINDOWS {
+        if let Some(window) = app.get_webview_window(label) {
+            let _ = window.set_always_on_top(value);
+        }
+    }
+}
+
+#[tauri::command]
+fn reapply_group_always_on_top(app: tauri::AppHandle) {
+    reapply_group_always_on_top_impl(&app);
+}
+
 fn publish_always_on_top(app: &tauri::AppHandle, value: bool) {
     let _ = app.emit(ALWAYS_ON_TOP_EVENT, value);
 }
@@ -413,10 +431,16 @@ fn restore_native_auxiliary_windows(app: &tauri::AppHandle) {
             let _ = window.hide();
         }
     }
+
+    // Showing/unminimizing a window can move it through a different native
+    // z-order path. Reapply the group state after the auxiliary restore so a
+    // docked window inherits Main's Always on Top setting as well.
+    reapply_group_always_on_top_impl(app);
 }
 
 #[tauri::command]
 fn set_native_auxiliary_visibility(
+    app: tauri::AppHandle,
     role: String,
     visible: bool,
     state: tauri::State<'_, AuxiliaryVisibility>,
@@ -429,6 +453,9 @@ fn set_native_auxiliary_visibility(
         .lock()
         .map_err(|_| "AMP99 auxiliary visibility state is unavailable".to_string())?
         .insert(role, visible);
+    if visible {
+        reapply_group_always_on_top_impl(&app);
+    }
     Ok(())
 }
 
@@ -483,6 +510,7 @@ pub fn run() {
             read_skin_file,
             start_spotify_oauth,
             set_group_always_on_top_preference,
+            reapply_group_always_on_top,
             set_native_auxiliary_visibility,
             open_official_amp99_release,
             show_preferences_window,
