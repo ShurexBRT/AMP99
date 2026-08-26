@@ -396,7 +396,7 @@ fn register_main_restore_event(app: &tauri::AppHandle) -> tauri::Result<()> {
     };
     let handle = app.clone();
     main.on_window_event(move |event| {
-        if matches!(event, WindowEvent::Focused(true)) {
+        if matches!(event, WindowEvent::Focused(true) | WindowEvent::Resized(_)) {
             let _ = handle.emit(MAIN_RESTORED_EVENT, ());
         }
     });
