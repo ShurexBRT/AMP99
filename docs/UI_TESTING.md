@@ -25,4 +25,4 @@ The GitHub Releases response is mocked inside the test. Spotify is intentionally
 
 `.github/workflows/windows-tauri.yml` continues to own the packaged desktop checks. Its MSI smoke launch sets `AMP99_SMOKE_ALWAYS_ON_TOP=1` and probes the Win32 extended window style on Main, Equalizer and Playlist. This opt-in flag exists only for CI and is not a persisted user preference.
 
-The native workflow also keeps the existing checks for three independent windows, minimize/restore, `.wsz` handoff, association and MSI uninstall. Spotify playback and OAuth remain owner/manual QA because CI must not contain personal credentials.
+The native workflow also keeps the existing checks for three independent windows, docking, docked-group movement, Main-only minimize/restore, Always on Top, `.wsz` handoff, association and MSI uninstall. Spotify playback and OAuth remain owner/manual QA because CI must not contain personal credentials.

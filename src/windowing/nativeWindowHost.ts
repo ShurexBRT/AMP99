@@ -231,6 +231,11 @@ function watchMainLifecycle(current: WebviewWindow): () => void {
         current.isMinimized().catch(() => false),
         current.isVisible().catch(() => true),
       ]);
+      if (wasMinimized === false && minimized) {
+        // Taskbar/native minimize can bypass the custom titlebar button. Keep
+        // the currently docked auxiliary group in sync with Main in that case.
+        void minimizeNativeWindowGroup();
+      }
       if (
         (wasMinimized === true && !minimized) ||
         (wasVisible === false && visible)
