@@ -71,7 +71,7 @@ test("Main seek control follows the expanded player body", async ({ page }) => {
   expect(expanded!.y).toBeGreaterThan(initial!.y + 40);
 });
 
-test("Main display and centered volume follow the expanded player", async ({ page }) => {
+test("Main display and outside volume follow the expanded player", async ({ page }) => {
   const main = page.locator('[data-window-id="main"]');
   const display = main.locator(".display-panel");
   const volume = main.getByLabel("Volume");
@@ -85,6 +85,7 @@ test("Main display and centered volume follow the expanded player", async ({ pag
 
   const expandedDisplay = await display.boundingBox();
   const expandedVolume = await volume.boundingBox();
+  const expandedMainBox = await main.boundingBox();
   expect(initialDisplay).not.toBeNull();
   expect(initialVolume).not.toBeNull();
   expect(expandedDisplay).not.toBeNull();
@@ -96,7 +97,10 @@ test("Main display and centered volume follow the expanded player", async ({ pag
   const volumeCenterY = expandedVolume!.y + expandedVolume!.height / 2;
   expect(Math.abs(volumeCenterY - displayCenterY)).toBeLessThan(12);
   expect(expandedVolume!.x).toBeGreaterThan(expandedDisplay!.x);
-  expect(expandedVolume!.x + expandedVolume!.width).toBeLessThan(expandedDisplay!.x + expandedDisplay!.width);
+  expect(expandedVolume!.width).toBeGreaterThan(initialVolume!.width + 50);
+  expect(expandedMainBox).not.toBeNull();
+  expect(expandedVolume!.x).toBeGreaterThan(expandedDisplay!.x + expandedDisplay!.width);
+  expect(expandedVolume!.x + expandedVolume!.width).toBeLessThan(expandedMainBox!.x + expandedMainBox!.width - 8);
 });
 
 test("playlist filter and Preferences sections expose the designed states", async ({ page }) => {
