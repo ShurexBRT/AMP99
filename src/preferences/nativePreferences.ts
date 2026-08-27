@@ -41,6 +41,11 @@ export async function startPreferencesWindowDrag(): Promise<void> {
   await getCurrentWebviewWindow().startDragging();
 }
 
+export async function startPreferencesWindowResize(): Promise<void> {
+  if (!isTauri()) return;
+  await getCurrentWebviewWindow().startResizeDragging("SouthEast");
+}
+
 export async function setNativeAlwaysOnTop(value: boolean): Promise<void> {
   if (!isTauri()) return;
   await invoke("set_group_always_on_top_preference", { value });

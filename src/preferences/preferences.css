@@ -183,6 +183,7 @@
 }
 
 .preferences-window {
+  position: relative;
   border: 1px solid #080a0d;
   background: #171a1e;
   box-shadow: inset 1px 1px #30363c, inset -1px -1px #080a0d;
@@ -446,3 +447,20 @@
 }
 
 .preferences-footer span { flex: 1; }
+
+.preferences-resize-handle { display: none; }
+
+html[data-native-window="true"][data-window-role="preferences"] .preferences-resize-handle {
+  display: block;
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 14px;
+  height: 14px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: repeating-linear-gradient(135deg, transparent 0 2px, #909090 2px 3px, transparent 3px 5px);
+  cursor: nwse-resize;
+  z-index: 90;
+}

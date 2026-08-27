@@ -89,9 +89,11 @@ fn ensure_preferences_window(app: &tauri::AppHandle) -> Result<(), String> {
         WebviewUrl::App("index.html".into()),
     )
     .title("AMP99 Preferences")
-    .inner_size(390.0, 475.0)
+    .inner_size(520.0, 475.0)
     .position(260.0, 180.0)
-    .resizable(false)
+    .resizable(true)
+    .min_inner_size(440.0, 380.0)
+    .max_inner_size(820.0, 720.0)
     .maximizable(false)
     .minimizable(false)
     .fullscreen(false)
