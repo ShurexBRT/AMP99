@@ -310,6 +310,11 @@ function DefaultMainPlayer(props: Props) {
           <div className="fake-spectrum" aria-hidden="true">
             {spectrum.map((height, index) => <i key={index} style={{ height, transition: "height 80ms linear" }} />)}
           </div>
+
+          <div className="volume-line">
+            <span>VOL</span>
+            <input className="classic-range compact" type="range" min="0" max="100" value={props.volume} onInput={(e) => props.onVolume(Number(e.currentTarget.value))} onChange={() => undefined} aria-label="Volume" />
+          </div>
         </div>
 
         <input className="seek classic-range" type="range" min="0" max="100" value={props.progress} onInput={(e) => props.onProgress(Number(e.currentTarget.value))} onChange={() => undefined} aria-label="Seek" />
@@ -321,11 +326,6 @@ function DefaultMainPlayer(props: Props) {
           <button title="Stop" onClick={props.onStop}>■</button>
           <button title="Next" onClick={props.onNext}>▶▶</button>
           <button className="eject-button" title="Open source menu">▲</button>
-        </div>
-
-        <div className="volume-line">
-          <span>VOL</span>
-          <input className="classic-range compact" type="range" min="0" max="100" value={props.volume} onInput={(e) => props.onVolume(Number(e.currentTarget.value))} onChange={() => undefined} aria-label="Volume" />
         </div>
 
         <div className="toggle-row">
