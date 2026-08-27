@@ -75,10 +75,14 @@ test("Main display and outside volume follow the expanded player", async ({ page
   const main = page.locator('[data-window-id="main"]');
   const display = main.locator(".display-panel");
   const displayContent = main.locator(".display-content");
+  const trackMarquee = main.locator(".track-marquee");
+  const spectrum = main.locator(".fake-spectrum");
   const time = main.locator(".time-display");
   const volume = main.getByLabel("Volume");
   const initialDisplay = await display.boundingBox();
   const initialDisplayContent = await displayContent.boundingBox();
+  const initialTrackMarquee = await trackMarquee.boundingBox();
+  const initialSpectrum = await spectrum.boundingBox();
   const initialTimeFontSize = await time.evaluate((element) => getComputedStyle(element).fontSize);
   const initialVolume = await volume.boundingBox();
 
@@ -89,15 +93,21 @@ test("Main display and outside volume follow the expanded player", async ({ page
 
   const expandedDisplay = await display.boundingBox();
   const expandedDisplayContent = await displayContent.boundingBox();
+  const expandedTrackMarquee = await trackMarquee.boundingBox();
+  const expandedSpectrum = await spectrum.boundingBox();
   const expandedTimeFontSize = await time.evaluate((element) => getComputedStyle(element).fontSize);
   const expandedVolume = await volume.boundingBox();
   const expandedMainBox = await main.boundingBox();
   expect(initialDisplay).not.toBeNull();
   expect(initialDisplayContent).not.toBeNull();
+  expect(initialTrackMarquee).not.toBeNull();
+  expect(initialSpectrum).not.toBeNull();
   expect(initialTimeFontSize).toBeTruthy();
   expect(initialVolume).not.toBeNull();
   expect(expandedDisplay).not.toBeNull();
   expect(expandedDisplayContent).not.toBeNull();
+  expect(expandedTrackMarquee).not.toBeNull();
+  expect(expandedSpectrum).not.toBeNull();
   expect(expandedTimeFontSize).toBe(initialTimeFontSize);
   expect(expandedVolume).not.toBeNull();
   expect(expandedDisplay!.width).toBeGreaterThan(initialDisplay!.width + 200);
@@ -107,6 +117,8 @@ test("Main display and outside volume follow the expanded player", async ({ page
   const expandedContentCenterY = expandedDisplayContent!.y + expandedDisplayContent!.height / 2;
   expect(Math.abs(expandedContentCenterY - expandedDisplayCenterY)).toBeLessThan(2);
   expect(expandedDisplayContent!.y).toBeGreaterThan(initialDisplayContent!.y + 20);
+  expect(expandedTrackMarquee!.x + expandedTrackMarquee!.width).toBeLessThanOrEqual(expandedSpectrum!.x + 1);
+  expect(expandedTrackMarquee!.width).toBeGreaterThan(initialTrackMarquee!.width + 100);
 
   const displayCenterY = expandedDisplay!.y + expandedDisplay!.height / 2;
   const volumeCenterY = expandedVolume!.y + expandedVolume!.height / 2;

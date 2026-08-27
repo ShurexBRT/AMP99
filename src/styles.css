@@ -99,7 +99,7 @@ button { color: #d6d6d6; }
 .time-display { position: absolute; left: 0; top: 0; font: 700 23px/24px "Courier New", monospace; letter-spacing: -2px; text-shadow: 0 0 4px rgba(255,179,71,.35); }
 .time-display-toggle { width: 78px; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
 .status-dot { position: absolute; left: 75px; top: 4px; color: var(--technical); font-size: 9px; }
-.track-marquee { position: absolute; left: 0; top: 24px; right: 0; overflow: hidden; white-space: nowrap; color: #e6e1d7; font: 700 10px/11px "Courier New", monospace; }
+.track-marquee { position: absolute; left: 0; top: 24px; right: 62px; overflow: hidden; white-space: nowrap; color: #e6e1d7; font: 700 10px/11px "Courier New", monospace; }
 .track-marquee span { display: inline-block; min-width: 100%; animation: marquee 9s linear infinite alternate; }
 @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-34px); } }
 .fake-spectrum { position: absolute; right: 0; top: 3px; width: 57px; height: 24px; display: flex; gap: 1px; align-items: flex-end; opacity: .9; }
