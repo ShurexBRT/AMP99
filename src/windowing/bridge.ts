@@ -75,6 +75,16 @@ export type MainCommandMap = {
 
 export type MainCommandName = keyof MainCommandMap;
 
+export type MainRequest = {
+  [K in MainCommandName]: {
+    kind: "request";
+    id: string;
+    source: Amp99NativeWindowRole;
+    command: K;
+    payload: MainCommandMap[K]["request"];
+  };
+}[MainCommandName];
+
 type MainRequestEnvelope = {
   kind: "request";
   id: string;
@@ -168,7 +178,7 @@ function isValidCommandPayload(
   return COMMAND_PAYLOAD_VALIDATORS[command](payload);
 }
 
-function isRequestEnvelope(value: unknown): value is MainRequestEnvelope {
+export function isMainRequestEnvelope(value: unknown): value is MainRequest {
   if (!isRecord(value) || value.kind !== "request") return false;
   if (typeof value.id !== "string" || !isWindowRole(value.source)) return false;
   if (
@@ -276,18 +286,14 @@ export async function requestMain<K extends MainCommandName>(
 }
 
 export function subscribeMainRequests(
-  handler: (request: {
-    source: Amp99NativeWindowRole;
-    command: MainCommandName;
-    payload: unknown;
-  }) => Promise<unknown>,
+  handler: (request: MainRequest) => Promise<unknown>,
 ): () => void {
   const bus = getChannel();
   if (!bus) return () => undefined;
 
   const onMessage = (event: MessageEvent<BusEnvelope>) => {
     const message = event.data;
-    if (!isRequestEnvelope(message)) {
+    if (!isMainRequestEnvelope(message)) {
       const invalidMessage = message as unknown as Record<string, unknown>;
       if (isRecord(invalidMessage) && invalidMessage.kind === "request" && typeof invalidMessage.id === "string") {
         bus.postMessage({
@@ -300,11 +306,7 @@ export function subscribeMainRequests(
       return;
     }
 
-    void handler({
-      source: message.source,
-      command: message.command,
-      payload: message.payload,
-    }).then(
+    void handler(message).then(
       (result) => {
         bus.postMessage({
           kind: "response",
