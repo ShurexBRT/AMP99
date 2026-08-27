@@ -63,7 +63,7 @@ html[data-native-window="true"][data-window-role="main"] .main-player.native-hos
 }
 
 html[data-native-window="true"][data-window-role="main"] .main-player.native-host-window:not(.legacy-skinned-window) .main-body {
-  height: calc(100% - 14px);
+  height: calc(100% - 18px);
 }
 
 html[data-native-window="true"][data-window-role="main"] .main-player.native-host-window:not(.legacy-skinned-window) .toggle-row {

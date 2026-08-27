@@ -103,6 +103,7 @@ export function PlaylistEditor({
   const [focusedTrackIndex, setFocusedTrackIndex] = useState(currentIndex);
   const [trackInfo, setTrackInfo] = useState<Track | null>(null);
   const [status, setStatus] = useState("LOCAL DEMO QUEUE");
+  const [queueQuery, setQueueQuery] = useState("");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState("");
   const [newPlaylistPublic, setNewPlaylistPublic] = useState(false);
@@ -399,6 +400,14 @@ export function PlaylistEditor({
   const canMoveTracks = activeSpotifyPlaylist ? canMove : tracks.length > 1;
 
   const contextTrack = contextMenu ? tracks[contextMenu.trackIndex] : null;
+  const normalizedQueueQuery = queueQuery.trim().toLowerCase();
+  const visibleTracks = normalizedQueueQuery
+    ? tracks
+        .map((track, index) => ({ track, index }))
+        .filter(({ track }) =>
+          `${track.artist} ${track.title}`.toLowerCase().includes(normalizedQueueQuery),
+        )
+    : tracks.map((track, index) => ({ track, index }));
   const contextActions = contextTrack && contextMenu
     ? getPlaylistContextActions({
         track: contextTrack,
@@ -416,6 +425,14 @@ export function PlaylistEditor({
 
   return (
     <WindowFrame title="AMP99 PLAYLIST EDITOR" position={position} width={275} height={232} onMove={onMove} className="playlist-window">
+      <input
+        className="playlist-search"
+        type="search"
+        value={queueQuery}
+        placeholder="FILTER QUEUE"
+        aria-label="Filter playlist"
+        onChange={(event) => setQueueQuery(event.currentTarget.value)}
+      />
       <div
         className="playlist-list"
         onClick={() => {
@@ -426,7 +443,9 @@ export function PlaylistEditor({
       >
         {tracks.length === 0 ? (
           <div className="playlist-empty">QUEUE IS EMPTY</div>
-        ) : tracks.map((track, index) => (
+        ) : visibleTracks.length === 0 ? (
+          <div className="playlist-empty">NO MATCHING TRACKS</div>
+        ) : visibleTracks.map(({ track, index }) => (
           <button
             key={`${track.source ?? "local"}-${track.id}-${index}`}
             className={`playlist-row ${index === currentIndex ? "selected" : ""} ${index === focusedTrackIndex ? "focused" : ""}`}
