@@ -26,3 +26,7 @@ The GitHub Releases response is mocked inside the test. Spotify is intentionally
 `.github/workflows/windows-tauri.yml` continues to own the packaged desktop checks. Its MSI smoke launch sets `AMP99_SMOKE_ALWAYS_ON_TOP=1` and probes the Win32 extended window style on Main, Equalizer and Playlist. This opt-in flag exists only for CI and is not a persisted user preference.
 
 The native workflow also keeps the existing checks for three independent windows, docking, docked-group movement, a native Main HWND minimize transition, restore, Always on Top, `.wsz` handoff, association and MSI uninstall. The test uses the HWND transition because WebView2 custom DOM controls are not exposed reliably through Windows UI Automation; the browser fallback smoke covers frontend controls separately. Spotify playback and OAuth remain owner/manual QA because CI must not contain personal credentials.
+
+## Release evidence
+
+The release workflow runs `npm run release:notes:check -- <version>` before publishing an alpha tag. Release notes must contain automated validation and manual Windows test sections. Automated checks are marked complete only by CI; Spotify playback, OAuth, DPI, monitor and legacy-skin behavior still require the manual matrix in [`RELEASE_QA.md`](./RELEASE_QA.md).
