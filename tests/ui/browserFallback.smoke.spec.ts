@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
 
 const latestRelease = {
-  tag_name: "v0.2.0-alpha.18",
-  html_url: "https://github.com/ShurexBRT/AMP99/releases/tag/v0.2.0-alpha.18",
+  tag_name: "v0.2.0-alpha.19",
+  html_url: "https://github.com/ShurexBRT/AMP99/releases/tag/v0.2.0-alpha.19",
   prerelease: true,
   draft: false,
   published_at: "2026-08-29T00:00:00Z",
@@ -71,7 +71,7 @@ test("Main seek control follows the expanded player body", async ({ page }) => {
   expect(expanded!.y).toBeGreaterThan(initial!.y + 40);
 });
 
-test("Main display and centered volume follow the expanded player", async ({ page }) => {
+test("Main display and outside volume follow the expanded player", async ({ page }) => {
   const main = page.locator('[data-window-id="main"]');
   const display = main.locator(".display-panel");
   const volume = main.getByLabel("Volume");
@@ -85,6 +85,7 @@ test("Main display and centered volume follow the expanded player", async ({ pag
 
   const expandedDisplay = await display.boundingBox();
   const expandedVolume = await volume.boundingBox();
+  const expandedMainBox = await main.boundingBox();
   expect(initialDisplay).not.toBeNull();
   expect(initialVolume).not.toBeNull();
   expect(expandedDisplay).not.toBeNull();
@@ -96,7 +97,10 @@ test("Main display and centered volume follow the expanded player", async ({ pag
   const volumeCenterY = expandedVolume!.y + expandedVolume!.height / 2;
   expect(Math.abs(volumeCenterY - displayCenterY)).toBeLessThan(12);
   expect(expandedVolume!.x).toBeGreaterThan(expandedDisplay!.x);
-  expect(expandedVolume!.x + expandedVolume!.width).toBeLessThan(expandedDisplay!.x + expandedDisplay!.width);
+  expect(expandedVolume!.width).toBeGreaterThan(initialVolume!.width + 50);
+  expect(expandedMainBox).not.toBeNull();
+  expect(expandedVolume!.x).toBeGreaterThan(expandedDisplay!.x + expandedDisplay!.width);
+  expect(expandedVolume!.x + expandedVolume!.width).toBeLessThan(expandedMainBox!.x + expandedMainBox!.width - 8);
 });
 
 test("playlist filter and Preferences sections expose the designed states", async ({ page }) => {
@@ -120,10 +124,10 @@ test("Preferences can be opened from the browser fallback and update check is us
   await page.getByRole("button", { name: "Preferences..." }).click();
 
   await expect(page.getByRole("region", { name: "AMP99 Preferences" })).toBeVisible();
-  await expect(page.getByText("AMP99 0.2.0-alpha.17", { exact: true })).toBeVisible();
+  await expect(page.getByText("AMP99 0.2.0-alpha.18", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "CHECK FOR UPDATES" }).click();
-  await expect(page.getByText("UPDATE AVAILABLE: 0.2.0-ALPHA.18", { exact: true })).toBeVisible();
+  await expect(page.getByText("UPDATE AVAILABLE: 0.2.0-ALPHA.19", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "OPEN RELEASE PAGE" })).toBeVisible();
   await expect(page.getByText("Updates are never downloaded or installed automatically in browser mode.")).toBeVisible();
 

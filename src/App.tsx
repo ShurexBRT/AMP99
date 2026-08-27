@@ -14,6 +14,7 @@ import { reorderSpotifyPlaylistItem } from "./spotify/playlistReorder";
 import type { SpotifyPlaylist, SpotifyTrack } from "./spotify/types";
 import { useSpotifyLibrary } from "./spotify/useSpotifyLibrary";
 import { useSpotifyPlayback } from "./spotify/useSpotifyPlayback";
+import { selectNextTrackIndex } from "./state/queueNavigation";
 import { useAmp99State } from "./state/useAmp99State";
 import type { Track } from "./types/player";
 import {
@@ -85,6 +86,14 @@ function MainController({ native }: { native: boolean }) {
     initialVolume: amp.volume,
   });
   const autoAdvanceTimerRef = useRef<number | null>(null);
+  const autoAdvanceInFlightRef = useRef<string | null>(null);
+  const playbackCommandIdRef = useRef(0);
+  const playbackSnapshotRef = useRef(playback.snapshot);
+  const playbackTransitionRef = useRef<{
+    fromUri: string | null;
+    toUri: string;
+  } | null>(null);
+  playbackSnapshotRef.current = playback.snapshot;
 
   const mainWindowWidth = skin.sprites?.has("main.windowBackground")
     ? LEGACY_MAIN_WINDOW_WIDTH
@@ -114,6 +123,23 @@ function MainController({ native }: { native: boolean }) {
   useEffect(() => {
     const snapshot = playback.snapshot;
     if (!snapshot) return;
+
+    const transition = playbackTransitionRef.current;
+    if (transition && snapshot.currentTrackUri !== transition.toUri) {
+      // Spotify can emit the old state while the explicit next-track command
+      // is still being applied. Do not let that stale event move the queue
+      // selection back to the track that just ended.
+      if (
+        snapshot.currentTrackUri === transition.fromUri ||
+        snapshot.currentTrackUri === null
+      ) {
+        return;
+      }
+
+      // A different track means Spotify advanced independently. Accept it as
+      // the new source of truth instead of fighting the SDK.
+      playbackTransitionRef.current = null;
+    }
 
     amp.setIsPlaying(!snapshot.paused);
 
@@ -270,19 +296,33 @@ function MainController({ native }: { native: boolean }) {
     const track = amp.tracks[index];
     if (!track) return;
 
+    const commandId = ++playbackCommandIdRef.current;
+
     amp.setCurrentIndex(index);
     amp.setProgress(0);
 
     if (track.source === "spotify" && track.uri) {
+      playbackTransitionRef.current = {
+        fromUri: playbackSnapshotRef.current?.currentTrackUri ?? amp.currentTrack.uri ?? null,
+        toUri: track.uri,
+      };
       try {
         await playback.playTrack(track.uri);
+        if (commandId !== playbackCommandIdRef.current) return;
         amp.setIsPlaying(true);
       } catch {
+        if (
+          commandId === playbackCommandIdRef.current &&
+          playbackTransitionRef.current?.toUri === track.uri
+        ) {
+          playbackTransitionRef.current = null;
+        }
         amp.setIsPlaying(false);
       }
       return;
     }
 
+    playbackTransitionRef.current = null;
     amp.setIsPlaying(true);
   };
 
@@ -293,10 +333,41 @@ function MainController({ native }: { native: boolean }) {
     await playTrackAt(index);
   };
 
-  const nextTrack = async () => {
+  const nextTrack = async (expectedCurrentUri?: string) => {
     if (amp.tracks.length === 0) return;
-    const index = (amp.currentIndex + 1) % amp.tracks.length;
-    await playTrackAt(index);
+
+    const currentSnapshot = playbackSnapshotRef.current;
+    if (
+      expectedCurrentUri &&
+      (currentSnapshot?.currentTrackUri !== expectedCurrentUri ||
+        amp.currentTrack.uri !== expectedCurrentUri)
+    ) {
+      return;
+    }
+
+    if (
+      expectedCurrentUri &&
+      autoAdvanceInFlightRef.current === expectedCurrentUri
+    ) {
+      return;
+    }
+
+    if (expectedCurrentUri) {
+      autoAdvanceInFlightRef.current = expectedCurrentUri;
+    }
+
+    try {
+      const index = selectNextTrackIndex(
+        amp.currentIndex,
+        amp.tracks.length,
+        amp.shuffle,
+      );
+      await playTrackAt(index);
+    } finally {
+      if (autoAdvanceInFlightRef.current === expectedCurrentUri) {
+        autoAdvanceInFlightRef.current = null;
+      }
+    }
   };
 
   useEffect(() => {
@@ -306,13 +377,18 @@ function MainController({ native }: { native: boolean }) {
     }
 
     const snapshot = playback.snapshot;
+    const transitionWaitingForTarget =
+      playbackTransitionRef.current !== null &&
+      snapshot?.currentTrackUri !== playbackTransitionRef.current.toUri;
     if (
       !snapshot ||
       snapshot.paused ||
       amp.repeat ||
       snapshot.durationMs <= 0 ||
       !snapshot.currentTrackUri ||
-      snapshot.currentTrackUri !== amp.currentTrack.uri
+      snapshot.currentTrackUri !== amp.currentTrack.uri ||
+      transitionWaitingForTarget ||
+      autoAdvanceInFlightRef.current !== null
     ) {
       return;
     }
@@ -320,8 +396,18 @@ function MainController({ native }: { native: boolean }) {
     const remainingMs = Math.max(0, snapshot.durationMs - snapshot.positionMs);
     autoAdvanceTimerRef.current = window.setTimeout(() => {
       autoAdvanceTimerRef.current = null;
-      void nextTrack();
-    }, Math.max(0, remainingMs - 75));
+      const latestSnapshot = playbackSnapshotRef.current;
+      if (
+        !latestSnapshot ||
+        latestSnapshot.paused ||
+        latestSnapshot.currentTrackUri !== snapshot.currentTrackUri ||
+        latestSnapshot.positionMs + 250 < latestSnapshot.durationMs
+      ) {
+        return;
+      }
+
+      void nextTrack(snapshot.currentTrackUri ?? undefined);
+    }, Math.max(100, remainingMs + 150));
 
     return () => {
       if (autoAdvanceTimerRef.current !== null) {
@@ -336,6 +422,7 @@ function MainController({ native }: { native: boolean }) {
     playback.snapshot?.paused,
     amp.currentTrack.uri,
     amp.repeat,
+    amp.shuffle,
     amp.currentIndex,
     amp.tracks.length,
   ]);
