@@ -74,8 +74,12 @@ test("Main seek control follows the expanded player body", async ({ page }) => {
 test("Main display and outside volume follow the expanded player", async ({ page }) => {
   const main = page.locator('[data-window-id="main"]');
   const display = main.locator(".display-panel");
+  const displayContent = main.locator(".display-content");
+  const time = main.locator(".time-display");
   const volume = main.getByLabel("Volume");
   const initialDisplay = await display.boundingBox();
+  const initialDisplayContent = await displayContent.boundingBox();
+  const initialTimeFontSize = await time.evaluate((element) => getComputedStyle(element).fontSize);
   const initialVolume = await volume.boundingBox();
 
   await main.evaluate((element) => {
@@ -84,14 +88,25 @@ test("Main display and outside volume follow the expanded player", async ({ page
   });
 
   const expandedDisplay = await display.boundingBox();
+  const expandedDisplayContent = await displayContent.boundingBox();
+  const expandedTimeFontSize = await time.evaluate((element) => getComputedStyle(element).fontSize);
   const expandedVolume = await volume.boundingBox();
   const expandedMainBox = await main.boundingBox();
   expect(initialDisplay).not.toBeNull();
+  expect(initialDisplayContent).not.toBeNull();
+  expect(initialTimeFontSize).toBeTruthy();
   expect(initialVolume).not.toBeNull();
   expect(expandedDisplay).not.toBeNull();
+  expect(expandedDisplayContent).not.toBeNull();
+  expect(expandedTimeFontSize).toBe(initialTimeFontSize);
   expect(expandedVolume).not.toBeNull();
   expect(expandedDisplay!.width).toBeGreaterThan(initialDisplay!.width + 200);
   expect(expandedDisplay!.height).toBeGreaterThan(initialDisplay!.height + 50);
+
+  const expandedDisplayCenterY = expandedDisplay!.y + expandedDisplay!.height / 2;
+  const expandedContentCenterY = expandedDisplayContent!.y + expandedDisplayContent!.height / 2;
+  expect(Math.abs(expandedContentCenterY - expandedDisplayCenterY)).toBeLessThan(2);
+  expect(expandedDisplayContent!.y).toBeGreaterThan(initialDisplayContent!.y + 20);
 
   const displayCenterY = expandedDisplay!.y + expandedDisplay!.height / 2;
   const volumeCenterY = expandedVolume!.y + expandedVolume!.height / 2;

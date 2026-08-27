@@ -297,19 +297,21 @@ function DefaultMainPlayer(props: Props) {
       <div className="main-body">
         <div className="main-display-stage">
           <div className="display-panel">
-            <button
-              type="button"
-              className="time-display time-display-toggle"
-              aria-label={`${showRemaining ? "Remaining" : "Elapsed"} ${secondsToTime(displayedTime)}; click to show ${showRemaining ? "elapsed" : "remaining"} time`}
-              title="Click to toggle elapsed and remaining time"
-              onClick={() => setShowRemaining((value) => !value)}
-            >
-              {secondsToTime(displayedTime)}
-            </button>
-            <div className="status-dot">{props.isPlaying ? "▶" : "■"}</div>
-            <div className="track-marquee"><span>{props.track.artist.toUpperCase()} - {props.track.title.toUpperCase()}</span></div>
-            <div className="fake-spectrum" aria-hidden="true">
-              {spectrum.map((height, index) => <i key={index} style={{ height, transition: "height 80ms linear" }} />)}
+            <div className="display-content">
+              <button
+                type="button"
+                className="time-display time-display-toggle"
+                aria-label={`${showRemaining ? "Remaining" : "Elapsed"} ${secondsToTime(displayedTime)}; click to show ${showRemaining ? "elapsed" : "remaining"} time`}
+                title="Click to toggle elapsed and remaining time"
+                onClick={() => setShowRemaining((value) => !value)}
+              >
+                {secondsToTime(displayedTime)}
+              </button>
+              <div className="status-dot">{props.isPlaying ? "▶" : "■"}</div>
+              <div className="track-marquee"><span>{props.track.artist.toUpperCase()} - {props.track.title.toUpperCase()}</span></div>
+              <div className="fake-spectrum" aria-hidden="true">
+                {spectrum.map((height, index) => <i key={index} style={{ height, transition: "height 80ms linear" }} />)}
+              </div>
             </div>
           </div>
 
