@@ -179,6 +179,7 @@
   background: var(--playlist-bg);
   box-shadow: none;
 }
+.playlist-window.legacy-skinned-window .playlist-search { display: none; }
 .playlist-window.legacy-skinned-window .playlist-row {
   height: 16px;
   padding: 1px 1px;

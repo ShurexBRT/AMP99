@@ -25,6 +25,24 @@ import {
 import "./preferences.css";
 
 type PreferenceKey = keyof Amp99Preferences;
+type PreferenceSection =
+  | "GENERAL"
+  | "PLAYBACK"
+  | "SPOTIFY"
+  | "APPEARANCE"
+  | "HOTKEYS"
+  | "UPDATES"
+  | "ABOUT";
+
+const PREFERENCE_SECTIONS: Array<{ id: PreferenceSection; label: string; hint: string }> = [
+  { id: "GENERAL", label: "General", hint: "Window behavior" },
+  { id: "PLAYBACK", label: "Playback", hint: "Startup and queue" },
+  { id: "SPOTIFY", label: "Spotify", hint: "Library connection" },
+  { id: "APPEARANCE", label: "Appearance", hint: "Skins and display" },
+  { id: "HOTKEYS", label: "Hotkeys", hint: "Keyboard shortcuts" },
+  { id: "UPDATES", label: "Updates", hint: "Release channel" },
+  { id: "ABOUT", label: "About", hint: "AMP99 alpha.15" },
+];
 
 const CHECKBOXES: Array<{
   key: PreferenceKey;
@@ -106,6 +124,7 @@ export function PreferencesWindow() {
   const version = useAmp99Version();
   const fileInput = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState("READY");
+  const [section, setSection] = useState<PreferenceSection>("GENERAL");
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [releaseUrl, setReleaseUrl] = useState<string | null>(null);
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
@@ -228,6 +247,126 @@ export function PreferencesWindow() {
     setStatus("PREFERENCES RESET");
   };
 
+  const sectionMeta = PREFERENCE_SECTIONS.find((item) => item.id === section) ?? PREFERENCE_SECTIONS[0];
+
+  const renderSection = () => {
+    if (section === "GENERAL") {
+      return (
+        <fieldset className="preferences-group">
+          <legend>WINDOW BEHAVIOR</legend>
+          {CHECKBOXES.filter((setting) => setting.section === "GENERAL").map((setting) => (
+            <PreferenceCheck
+              key={setting.key}
+              setting={setting}
+              checked={preferences[setting.key]}
+              onChange={(value) => changePreference(setting.key, value)}
+            />
+          ))}
+        </fieldset>
+      );
+    }
+
+    if (section === "PLAYBACK") {
+      return (
+        <fieldset className="preferences-group">
+          <legend>STARTUP AND QUEUE</legend>
+          {CHECKBOXES.filter((setting) => setting.section === "STARTUP").map((setting) => (
+            <PreferenceCheck
+              key={setting.key}
+              setting={setting}
+              checked={preferences[setting.key]}
+              onChange={(value) => changePreference(setting.key, value)}
+            />
+          ))}
+        </fieldset>
+      );
+    }
+
+    if (section === "APPEARANCE") {
+      return (
+        <fieldset className="preferences-group preferences-skins">
+          <legend>PLAYER SKIN</legend>
+          <div className="preferences-skin-card">
+            <div>
+              <strong>{skin.activeSkin}</strong>
+              <small>User-supplied classic .wsz skins only.</small>
+            </div>
+            <span className="preferences-chip">{skin.loading ? "LOADING" : "ACTIVE"}</span>
+          </div>
+          <div className="preferences-skin-row">
+            <button type="button" disabled={skin.loading} onClick={() => fileInput.current?.click()}>
+              {skin.loading ? "LOADING..." : "LOAD SKIN..."}
+            </button>
+            <button type="button" onClick={() => { skin.resetSkin(); setStatus("AMP99 DEFAULT SKIN RESTORED"); }}>
+              USE DEFAULT
+            </button>
+            <input
+              ref={fileInput}
+              className="preferences-hidden-file"
+              type="file"
+              accept=".wsz,.zip"
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                event.currentTarget.value = "";
+                void loadSkin(file);
+              }}
+            />
+          </div>
+          <small>AMP99 does not bundle legacy skins. A selected skin applies to the player windows only.</small>
+        </fieldset>
+      );
+    }
+
+    if (section === "SPOTIFY") {
+      return (
+        <div className="preferences-info-card">
+          <span className="preferences-info-kicker">OFFICIAL INTEGRATION</span>
+          <h2>Spotify library and playback</h2>
+          <p>Connect, browse playlists, load Liked Songs and manage playlist edits from the classic Playlist Editor.</p>
+          <p className="preferences-muted">Use LIST OPTS → Connect Spotify... to start an Authorization Code with PKCE session.</p>
+        </div>
+      );
+    }
+
+    if (section === "HOTKEYS") {
+      return (
+        <div className="preferences-empty-state">
+          <span className="preferences-empty-icon">⌘</span>
+          <h2>Custom hotkeys are not configurable yet</h2>
+          <p>This alpha keeps keyboard control intentionally small while the native player workflow is finalized.</p>
+        </div>
+      );
+    }
+
+    if (section === "UPDATES") {
+      return (
+        <fieldset className="preferences-group preferences-updates">
+          <legend>RELEASE CHANNEL</legend>
+          <div className="preferences-skin-row">
+            <button type="button" disabled={checkingUpdate} onClick={() => void checkForUpdates()}>
+              {checkingUpdate ? "CHECKING..." : "CHECK FOR UPDATES"}
+            </button>
+            {releaseUrl ? <button type="button" onClick={() => void openRelease()}>OPEN RELEASE PAGE</button> : null}
+            {nativeUpdate ? <button type="button" onClick={() => void installUpdate()} disabled={checkingUpdate}>INSTALL UPDATE</button> : null}
+          </div>
+          <small>
+            {latestVersion ? `Latest published AMP99 release: ${latestVersion}. ` : "Checks official AMP99 GitHub Releases. "}
+            {isTauri() ? "Updates are signed and downloaded only after you confirm installation." : "Updates are never downloaded or installed automatically in browser mode."}
+          </small>
+        </fieldset>
+      );
+    }
+
+    return (
+      <div className="preferences-about-card">
+        <span className="preferences-info-kicker">ABOUT THIS BUILD</span>
+        <strong>AMP99 {version}</strong>
+        <p>Play it like it&apos;s 1999.</p>
+        <small>Closed alpha · Windows desktop build</small>
+      </div>
+    );
+  };
+
   return (
     <main className="preferences-root">
       <section className="preferences-window" aria-label="AMP99 Preferences">
@@ -252,94 +391,52 @@ export function PreferencesWindow() {
         </header>
 
         <div className="preferences-content">
-          {(["GENERAL", "STARTUP"] as const).map((section) => (
-            <fieldset key={section} className="preferences-group">
-              <legend>{section}</legend>
-              {CHECKBOXES.filter((setting) => setting.section === section).map(
-                (setting) => (
-                  <PreferenceCheck
-                    key={setting.key}
-                    setting={setting}
-                    checked={preferences[setting.key]}
-                    onChange={(value) => changePreference(setting.key, value)}
-                  />
-                ),
-              )}
-            </fieldset>
-          ))}
-
-          <fieldset className="preferences-group preferences-skins">
-            <legend>SKINS</legend>
-            <div className="preferences-skin-row">
-              <button
-                type="button"
-                disabled={skin.loading}
-                onClick={() => fileInput.current?.click()}
-              >
-                {skin.loading ? "LOADING..." : "LOAD SKIN..."}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  skin.resetSkin();
-                  setStatus("AMP99 DEFAULT SKIN RESTORED");
-                }}
-              >
-                USE DEFAULT
-              </button>
-              <input
-                ref={fileInput}
-                className="preferences-hidden-file"
-                type="file"
-                accept=".wsz,.zip"
-                onChange={(event) => {
-                  const file = event.currentTarget.files?.[0];
-                  event.currentTarget.value = "";
-                  void loadSkin(file);
-                }}
-              />
+          <nav className="preferences-nav" aria-label="Preference sections">
+            <span className="preferences-nav-label">SETTINGS</span>
+            <div className="preferences-nav-list">
+              {PREFERENCE_SECTIONS.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={item.id === section ? "selected" : ""}
+                  onClick={() => setSection(item.id)}
+                >
+                  <strong>{item.label}</strong>
+                  <small>{item.hint}</small>
+                </button>
+              ))}
             </div>
-            <small>User-supplied classic .wsz skins only. AMP99 does not bundle legacy skins.</small>
-          </fieldset>
-
-          <fieldset className="preferences-group preferences-updates">
-            <legend>UPDATES</legend>
-            <div className="preferences-skin-row">
+            <div className="preferences-nav-footer">
+              <strong>AMP99</strong>
+              <span>AMP99 {version}</span>
+              <span>PLAY IT LIKE IT&apos;S 1999</span>
+            </div>
+          </nav>
+          <section className="preferences-pane" aria-live="polite">
+            <div className="preferences-pane-heading">
+              <span className="preferences-info-kicker">AMP99 CONTROL PANEL</span>
+              <h1>{sectionMeta.label}</h1>
+              <p>{sectionMeta.hint}</p>
+            </div>
+            <div className="preferences-pane-scroll">{renderSection()}</div>
+          </section>
+          <footer className="preferences-footer">
+            <span>{status}</span>
+            {section !== "UPDATES" ? (
               <button type="button" disabled={checkingUpdate} onClick={() => void checkForUpdates()}>
                 {checkingUpdate ? "CHECKING..." : "CHECK FOR UPDATES"}
               </button>
-              {releaseUrl ? (
-                <button type="button" onClick={() => void openRelease()}>
-                  OPEN RELEASE PAGE
-                </button>
-              ) : null}
-              {nativeUpdate ? (
-                <button type="button" onClick={() => void installUpdate()} disabled={checkingUpdate}>
-                  INSTALL UPDATE
-                </button>
-              ) : null}
-            </div>
-            <small>
-              {latestVersion
-                ? `Latest published AMP99 release: ${latestVersion}. `
-                : "Checks official AMP99 GitHub Releases. "}
-              {isTauri()
-                ? "Updates are signed and downloaded only after you confirm installation."
-                : "Updates are never downloaded or installed automatically in browser mode."}
-            </small>
-          </fieldset>
-
-          <fieldset className="preferences-group preferences-about">
-            <legend>ABOUT</legend>
-            <div><strong>AMP99 {version}</strong></div>
-            <div>Play it like it&apos;s 1999.</div>
-            <small>Closed alpha · Windows desktop build</small>
-          </fieldset>
-
-          <div className="preferences-footer">
-            <span>{status}</span>
+            ) : null}
+            {section !== "UPDATES" && releaseUrl ? (
+              <>
+                <button type="button" onClick={() => void openRelease()}>OPEN RELEASE PAGE</button>
+                <span className="preferences-update-note">{isTauri()
+                  ? "Updates are signed and downloaded only after you confirm installation."
+                  : "Updates are never downloaded or installed automatically in browser mode."}</span>
+              </>
+            ) : null}
             <button type="button" onClick={resetAll}>RESET SETTINGS</button>
-          </div>
+          </footer>
         </div>
       </section>
     </main>

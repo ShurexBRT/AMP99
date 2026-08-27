@@ -42,6 +42,36 @@ test("time display toggles between elapsed and remaining time", async ({ page })
   await expect(page.getByRole("button", { name: /Remaining/ })).toBeVisible();
 });
 
+test("player state controls keep their rendered native-window contract", async ({ page }) => {
+  const main = page.locator('[data-window-id="main"]');
+  const desktop = page.locator(".desktop");
+
+  await expect(desktop).toHaveAttribute("data-double-size", "false");
+  await page.getByRole("button", { name: "2×", exact: true }).click();
+  await expect(desktop).toHaveAttribute("data-double-size", "true");
+
+  await main.locator(".amp-titlebar").dblclick();
+  await expect(main).toHaveAttribute("data-shaded", "true");
+  await main.locator(".amp-titlebar").dblclick();
+  await expect(main).toHaveAttribute("data-shaded", "false");
+});
+
+test("playlist filter and Preferences sections expose the designed states", async ({ page }) => {
+  const playlist = page.getByRole("region", { name: "AMP99 PLAYLIST EDITOR" });
+  const filter = page.getByLabel("Filter playlist", { exact: true });
+
+  await filter.fill("debug");
+  await expect(playlist.locator(".playlist-row")).toHaveCount(1);
+  await expect(playlist.locator(".playlist-row").first()).toContainText("The Debuggers");
+
+  await page.getByRole("button", { name: "LIST OPTS", exact: true }).click();
+  await page.getByRole("button", { name: "Preferences...", exact: true }).click();
+  await page.getByRole("button", { name: /^Appearance / }).click();
+  await expect(page.locator(".preferences-pane-heading h1")).toHaveText("Appearance");
+  await page.getByRole("button", { name: /^Spotify / }).click();
+  await expect(page.locator(".preferences-pane-heading h1")).toHaveText("Spotify");
+});
+
 test("Preferences can be opened from the browser fallback and update check is user initiated", async ({ page }) => {
   await page.getByRole("button", { name: "LIST OPTS" }).click();
   await page.getByRole("button", { name: "Preferences..." }).click();
