@@ -42,7 +42,7 @@ const PREFERENCE_SECTIONS: Array<{ id: PreferenceSection; label: string; hint: s
   { id: "APPEARANCE", label: "Appearance", hint: "Skins and display" },
   { id: "HOTKEYS", label: "Hotkeys", hint: "Keyboard shortcuts" },
   { id: "UPDATES", label: "Updates", hint: "Release channel" },
-  { id: "ABOUT", label: "About", hint: "AMP99 alpha.16" },
+  { id: "ABOUT", label: "About", hint: "AMP99 alpha.17" },
 ];
 
 const CHECKBOXES: Array<{
