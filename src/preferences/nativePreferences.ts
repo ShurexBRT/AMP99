@@ -81,7 +81,7 @@ export function useApplyNativePreferences(): void {
 }
 
 export function useAmp99Version(): string {
-  const [version, setVersion] = useState("0.2.0-alpha.19");
+  const [version, setVersion] = useState("0.2.0-alpha.20");
 
   useEffect(() => {
     if (!isTauri()) return;
