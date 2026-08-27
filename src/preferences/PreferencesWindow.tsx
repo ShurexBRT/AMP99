@@ -14,6 +14,7 @@ import { forgetNativeWindowPositions } from "../windowing/nativeWindowHost";
 import {
   hidePreferencesWindow,
   startPreferencesWindowDrag,
+  startPreferencesWindowResize,
   useAmp99Version,
 } from "./nativePreferences";
 import {
@@ -437,6 +438,17 @@ export function PreferencesWindow() {
             ) : null}
             <button type="button" onClick={resetAll}>RESET SETTINGS</button>
           </footer>
+          <button
+            type="button"
+            className="preferences-resize-handle"
+            aria-label="Resize Preferences"
+            title="Drag to resize Preferences"
+            onPointerDown={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              void startPreferencesWindowResize();
+            }}
+          />
         </div>
       </section>
     </main>

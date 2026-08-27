@@ -56,6 +56,21 @@ test("player state controls keep their rendered native-window contract", async (
   await expect(main).toHaveAttribute("data-shaded", "false");
 });
 
+test("Main seek control follows the expanded player body", async ({ page }) => {
+  const main = page.locator('[data-window-id="main"]');
+  const seek = main.getByLabel("Seek");
+  const initial = await seek.boundingBox();
+
+  await main.evaluate((element) => {
+    element.style.height = "320px";
+  });
+
+  const expanded = await seek.boundingBox();
+  expect(initial).not.toBeNull();
+  expect(expanded).not.toBeNull();
+  expect(expanded!.y).toBeGreaterThan(initial!.y + 40);
+});
+
 test("playlist filter and Preferences sections expose the designed states", async ({ page }) => {
   const playlist = page.getByRole("region", { name: "AMP99 PLAYLIST EDITOR" });
   const filter = page.getByLabel("Filter playlist", { exact: true });
