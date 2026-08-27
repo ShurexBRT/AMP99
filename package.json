@@ -8,6 +8,7 @@
     "test": "vitest run",
     "test:ui": "playwright test",
     "version:check": "node scripts/check-version.mjs",
+    "release:notes:check": "node scripts/check-release-notes.mjs",
     "build": "npm run version:check && tsc --noEmit && vite build",
     "preview": "vite preview",
     "tauri": "tauri",

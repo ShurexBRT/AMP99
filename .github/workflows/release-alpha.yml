@@ -51,6 +51,7 @@ jobs:
             throw "This workflow only publishes alpha tags. Got: $tagVersion"
           }
           npm run version:check
+          npm run release:notes:check -- $tagVersion
 
       - name: Generate AMP99 platform icons
         run: npm run tauri:icon

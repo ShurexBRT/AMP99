@@ -4,6 +4,15 @@ This checklist separates **automated evidence**, **manual Windows QA**, **Store 
 
 Do not call V1 release-ready while a required gate is unknown.
 
+## Evidence rules
+
+- Checkboxes in `docs/releases/<version>.md` describe the exact candidate named by the release.
+- Mark automated items `[x]` only after the matching CI job has passed for that candidate commit.
+- Keep manual Windows and Spotify items as executable test instructions; mark them `[x]` only after recording the result on the target machine.
+- A release note must retain both automated evidence and a manual test plan. `npm run release:notes:check -- <version>` enforces that structure before an alpha tag can publish.
+
+Record manual results with the candidate version, Windows build, display scaling, monitor setup, skin, Spotify account/device state and a short result. A failed test stays unchecked and becomes a release blocker until it is understood.
+
 ## 1. Automated CI gates
 
 Every release candidate must pass the repository workflows for the exact candidate commit.
@@ -88,6 +97,16 @@ Test at minimum:
 - [ ] Windows scaling 200%.
 - [ ] Two monitors with matching scale.
 - [ ] Two monitors with different scale factors, if hardware is available.
+
+Minimum matrix for each release candidate:
+
+| Environment | Main mode | Skin | Spotify state | Required focus |
+|---|---|---|---|---|
+| Windows 11, 100% DPI, one monitor | 1x and 2x | Default AMP99 | Signed out / signed in | startup, playback, docking, update check |
+| Windows 11, 125% or 150% DPI, one monitor | 1x and 2x | Default AMP99 | Signed in, Premium active device | resize, seek, minimize/restore, tray |
+| Windows 11, mixed-DPI dual monitor | 1x and 2x | One approved legacy `.wsz` | Signed in, Premium active device | move group across monitors, persistence, skin sync |
+
+If a hardware/environment row is unavailable, record it as untested rather than passing it by inference.
 
 For each relevant setup:
 
