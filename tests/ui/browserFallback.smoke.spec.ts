@@ -1,11 +1,11 @@
 import { expect, test } from "@playwright/test";
 
 const latestRelease = {
-  tag_name: "v0.2.0-alpha.19",
-  html_url: "https://github.com/ShurexBRT/AMP99/releases/tag/v0.2.0-alpha.19",
+  tag_name: "v0.2.0-alpha.20",
+  html_url: "https://github.com/ShurexBRT/AMP99/releases/tag/v0.2.0-alpha.20",
   prerelease: true,
   draft: false,
-  published_at: "2026-08-29T00:00:00Z",
+  published_at: "2026-08-30T00:00:00Z",
 };
 
 test.beforeEach(async ({ page }) => {
@@ -139,10 +139,10 @@ test("Preferences can be opened from the browser fallback and update check is us
   await page.getByRole("button", { name: "Preferences..." }).click();
 
   await expect(page.getByRole("region", { name: "AMP99 Preferences" })).toBeVisible();
-  await expect(page.getByText("AMP99 0.2.0-alpha.18", { exact: true })).toBeVisible();
+  await expect(page.getByText("AMP99 0.2.0-alpha.19", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "CHECK FOR UPDATES" }).click();
-  await expect(page.getByText("UPDATE AVAILABLE: 0.2.0-ALPHA.19", { exact: true })).toBeVisible();
+  await expect(page.getByText("UPDATE AVAILABLE: 0.2.0-ALPHA.20", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "OPEN RELEASE PAGE" })).toBeVisible();
   await expect(page.getByText("Updates are never downloaded or installed automatically in browser mode.")).toBeVisible();
 
