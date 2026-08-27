@@ -71,6 +71,34 @@ test("Main seek control follows the expanded player body", async ({ page }) => {
   expect(expanded!.y).toBeGreaterThan(initial!.y + 40);
 });
 
+test("Main display and centered volume follow the expanded player", async ({ page }) => {
+  const main = page.locator('[data-window-id="main"]');
+  const display = main.locator(".display-panel");
+  const volume = main.getByLabel("Volume");
+  const initialDisplay = await display.boundingBox();
+  const initialVolume = await volume.boundingBox();
+
+  await main.evaluate((element) => {
+    element.style.width = "660px";
+    element.style.height = "320px";
+  });
+
+  const expandedDisplay = await display.boundingBox();
+  const expandedVolume = await volume.boundingBox();
+  expect(initialDisplay).not.toBeNull();
+  expect(initialVolume).not.toBeNull();
+  expect(expandedDisplay).not.toBeNull();
+  expect(expandedVolume).not.toBeNull();
+  expect(expandedDisplay!.width).toBeGreaterThan(initialDisplay!.width + 200);
+  expect(expandedDisplay!.height).toBeGreaterThan(initialDisplay!.height + 50);
+
+  const displayCenterY = expandedDisplay!.y + expandedDisplay!.height / 2;
+  const volumeCenterY = expandedVolume!.y + expandedVolume!.height / 2;
+  expect(Math.abs(volumeCenterY - displayCenterY)).toBeLessThan(12);
+  expect(expandedVolume!.x).toBeGreaterThan(expandedDisplay!.x);
+  expect(expandedVolume!.x + expandedVolume!.width).toBeLessThan(expandedDisplay!.x + expandedDisplay!.width);
+});
+
 test("playlist filter and Preferences sections expose the designed states", async ({ page }) => {
   const playlist = page.getByRole("region", { name: "AMP99 PLAYLIST EDITOR" });
   const filter = page.getByLabel("Filter playlist", { exact: true });
