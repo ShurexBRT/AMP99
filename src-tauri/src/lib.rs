@@ -157,11 +157,22 @@ fn set_group_always_on_top_preference(
     state: tauri::State<'_, AlwaysOnTop>,
     value: bool,
 ) -> Result<(), String> {
-    if !set_group_always_on_top(&app, value) {
+    // The installer smoke test opts into a native-only Always on Top probe via
+    // an environment variable. The normal webview startup then hydrates the
+    // persisted preference (usually `false`) and would otherwise overwrite the
+    // probe before it can inspect all three native windows. Keep this override
+    // isolated to the test process; normal users still get their saved value.
+    let effective_value = if std::env::var_os("AMP99_SMOKE_ALWAYS_ON_TOP").is_some() {
+        true
+    } else {
+        value
+    };
+
+    if !set_group_always_on_top(&app, effective_value) {
         return Err("AMP99 player windows are not available.".into());
     }
-    state.0.store(value, Ordering::Relaxed);
-    publish_always_on_top(&app, value);
+    state.0.store(effective_value, Ordering::Relaxed);
+    publish_always_on_top(&app, effective_value);
     Ok(())
 }
 
