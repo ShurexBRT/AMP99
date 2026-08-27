@@ -485,8 +485,8 @@ function MainController({ native }: { native: boolean }) {
     Parameters<typeof subscribeMainRequests>[0]
   >(null);
 
-  mainRequestHandlerRef.current = async ({ command, payload }) => {
-      switch (command) {
+  mainRequestHandlerRef.current = async (request) => {
+      switch (request.command) {
         case "togglePlay":
           return togglePlay();
         case "stop":
@@ -496,13 +496,13 @@ function MainController({ native }: { native: boolean }) {
         case "next":
           return nextTrack();
         case "setVolume":
-          changeVolume(payload as number);
+          changeVolume(request.payload);
           return;
         case "setBalance":
-          amp.setBalance(payload as number);
+          amp.setBalance(request.payload);
           return;
         case "setProgress":
-          seek(payload as number);
+          seek(request.payload);
           return;
         case "toggleShuffle":
           toggleShuffle();
@@ -511,27 +511,26 @@ function MainController({ native }: { native: boolean }) {
           toggleRepeat();
           return;
         case "setDoubleSize":
-          amp.setDoubleSize(payload as boolean);
+          amp.setDoubleSize(request.payload);
           return;
         case "setPlaylistVisible":
-          setPlaylistVisible(payload as boolean);
+          setPlaylistVisible(request.payload);
           return;
         case "setEqualizerVisible":
-          setEqualizerVisible(payload as boolean);
+          setEqualizerVisible(request.payload);
           return;
         case "playNextTrack":
-          amp.playNextTrack(payload as number);
+          amp.playNextTrack(request.payload);
           return;
         case "removeQueueTrack":
-          amp.removeTrack(payload as number);
+          amp.removeTrack(request.payload);
           return;
         case "moveQueueTrack": {
-          const request = payload as { trackIndex: number; direction: -1 | 1 };
-          amp.moveQueueTrack(request.trackIndex, request.direction);
+          amp.moveQueueTrack(request.payload.trackIndex, request.payload.direction);
           return;
         }
         case "selectTrack":
-          return playTrackAt(payload as number);
+          return playTrackAt(request.payload);
         case "connectSpotify":
           return spotify.connect();
         case "disconnectSpotify":
@@ -540,24 +539,20 @@ function MainController({ native }: { native: boolean }) {
         case "refreshSpotify":
           return spotify.refreshLibrary();
         case "loadSpotifyPlaylist":
-          return loadSpotifyPlaylist(payload as SpotifyPlaylist);
+          return loadSpotifyPlaylist(request.payload);
         case "loadLikedSongs":
           return loadLikedSongs();
         case "createSpotifyPlaylist": {
-          const request = payload as { name: string; isPublic: boolean };
-          return createSpotifyPlaylist(request.name, request.isPublic);
+          return createSpotifyPlaylist(request.payload.name, request.payload.isPublic);
         }
         case "searchSpotifyTracks":
-          return spotify.searchTracks(payload as string);
+          return spotify.searchTracks(request.payload);
         case "addSpotifyTrack":
-          return addSpotifyTrack(payload as SpotifyTrack);
+          return addSpotifyTrack(request.payload);
         case "removeSpotifyTrack":
-          return removeSpotifyTrack(payload as Track);
+          return removeSpotifyTrack(request.payload);
         case "moveSpotifyTrack":
-          {
-            const request = payload as { trackIndex: number; direction: -1 | 1 };
-            return moveSpotifyTrack(request.trackIndex, request.direction);
-          }
+          return moveSpotifyTrack(request.payload.trackIndex, request.payload.direction);
         case "clearQueue":
           amp.replaceQueue([]);
           setActiveSpotifyPlaylist(null);
