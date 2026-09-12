@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "projectKey": "AMP",
+  "name": "AMP99",
+  "repository": "ShurexBRT/AMP99",
+  "defaultBranch": "main",
+  "forgeUrl": "https://shurexbrt.github.io/Forge/",
+  "ticketRequired": true,
+  "roles": ["Planner", "Builder", "Reviewer", "QA", "Browser", "Release"],
+  "branchPattern": "agent/{role}/{ticket}-{slug}",
+  "runtime": "Tauri 2 Windows desktop app",
+  "criticalSurfaces": ["native windowing", "Spotify session ownership", "WSZ parsing/security", "installer/release", "Store MSIX", "window docking/persistence"],
+  "agentContract": "AGENTS.md",
+  "notes": "AMP99 already has a strict AI collaboration protocol. Forge coordinates tickets and handoffs but does not weaken native Windows validation requirements."
+}
